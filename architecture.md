@@ -135,6 +135,13 @@ columns:
   - source_col: __END_AT
     target_col: __etl_effective_to
     data_type: TIMESTAMP
+    expression: "COALESCE(__END_AT, CAST(ev_end_date AS TIMESTAMP))"   # NULL → 9999-12-31 23:59:59
+    is_audit_col: true
+
+  - source_col:
+    target_col: __etl_is_current
+    data_type: BOOLEAN
+    expression: "__END_AT IS NULL"
     is_audit_col: true
 
   # Business columns — typecasting and cleansing
@@ -217,10 +224,12 @@ read_mode: snapshot
 |---|---|---|---|---|---|---|
 | `__etl_loaded_at` | yes | — | yes | yes | yes | — |
 | `__etl_effective_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
-| `__etl_effective_to` | — | _(Auto CDC — `__END_AT`)_ | yes (renamed) | — | SCD-2 | inherited |
+| `__etl_effective_to` | — | _(Auto CDC — `__END_AT`)_ | yes (mapped) | — | SCD-2 | inherited |
 | `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
 
-> `__etl_record_indicator` is not used — Auto CDC handles change detection internally. Record state is determined from `__etl_effective_to IS NULL` (`__etl_is_current`).
+> `__etl_record_indicator` is not used — Auto CDC handles change detection internally.
+>
+> `__etl_effective_to` is never `NULL`. In Processed, `__END_AT IS NULL` (current record) is replaced with `ev_end_date` (`9999-12-31 23:59:59`). `__etl_is_current` is then derived as `__etl_effective_to = ev_end_date`.
 
 ---
 
@@ -237,6 +246,19 @@ read_mode: snapshot
 | Gold Data Mart | `tbl_mart_` | `tbl_mart_sales` |
 
 All names: `lower_snake_case`.
+
+---
+
+## Environment Variables
+
+Pipeline-wide constants controlled outside of YAML config. These mirror the environment variables used in SETL and are bound at runtime.
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `ev_end_date` | `9999-12-31 23:59:59` | Default effective-to for current records. Used in Processed to replace `__END_AT IS NULL`. |
+| `ev_start_date` | `2000-01-01 00:00:00` | Default effective-from for initial loads. |
+| `ev_null_value` | `^^` | Consistent null sentinel applied across the pipeline. |
+| `ev_field_separator` | `\|\|` | Field separator for compounding business keys. |
 
 ---
 
