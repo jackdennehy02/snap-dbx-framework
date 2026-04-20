@@ -76,15 +76,19 @@ TEMPLATE_MAP = {
     ("gold", "data_mart"):          "hop.yml",
 }
 
-# Default object name prefixes per hop
+# Default object name prefixes per hop (bronze/silver only — consolidation onwards requires explicit object_name in objects.yml)
 OBJECT_NAME_PREFIXES = {
-    ("bronze", "raw"):              "tbl_raw_",
-    ("bronze", "cdc"):              "tbl_cdc_",
-    ("silver", "processed"):        "tbl_proc_",
-    ("silver", "skey"):             "tbl_skey_",
-    ("silver", "consolidation"):    "tbl_cons_",
-    ("gold", "dimensional"):        "tbl_dim_",
-    ("gold", "data_mart"):          "tbl_mart_",
+    ("bronze", "raw"):              "tbl_a_raw_",
+    ("bronze", "cdc"):              "tbl_b_cdc_",
+    ("silver", "processed"):        "tbl_a_proc_",
+    ("silver", "skey"):             "tbl_b_skey_",
+}
+
+# Hops where object_name must be explicitly set in objects.yml — no auto-generated fallback
+REQUIRES_EXPLICIT_OBJECT_NAME = {
+    ("silver", "consolidation"),
+    ("gold", "dimensional"),
+    ("gold", "data_mart"),
 }
 
 # Default source object for each hop (what it reads from upstream)
@@ -299,10 +303,9 @@ def populate_skey_template(template, object_key, hop_config, top_level):
     })
 
 
-def populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level):
+def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config, top_level):
     """Standard hop template — consolidation and gold."""
-    prefix = OBJECT_NAME_PREFIXES.get((layer, sub_layer), f"tbl_{sub_layer}_")
-    object_name = hop_config.get("object_name") or f"{prefix}{object_key}"
+    object_name = hop_config.get("object_name") or ""
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     return _substitute_fields(template, {
@@ -393,6 +396,10 @@ def generate_configs(config_root: str, template_dir: str, objects_file: str):
                     continue
 
                 folder_key = (layer, sub_layer)
+
+                if folder_key in REQUIRES_EXPLICIT_OBJECT_NAME and not hop_config.get("object_name"):
+                    print(f"⚠️  '{object_key}' ({layer}/{sub_layer}) has no object_name set — skipping. Set it explicitly in objects.yml.")
+                    continue
 
                 folder_rel = HOP_FOLDERS.get(folder_key)
                 if not folder_rel:

@@ -18,32 +18,32 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_raw_customer
+        object_name: tbl_a_raw_customer
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cdc_customer
+        object_name: tbl_b_cdc_customer
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_proc_customer
+        object_name: tbl_a_proc_customer
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_skey_customer
+        object_name: tbl_b_skey_customer
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cons_customer
+        object_name: tbl_c_cons_customer
     gold:
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_dim_customer
+        object_name: tbl_a_dim_customer
       data_mart:
         enabled: false
-        object_name: tbl_mart_customer
+        object_name: tbl_b_mart_customer
 
   material:
     source_type: cloud_storage
@@ -51,32 +51,32 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_raw_material
+        object_name: tbl_a_raw_material
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cdc_material
+        object_name: tbl_b_cdc_material
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_proc_material
+        object_name: tbl_a_proc_material
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_skey_material
+        object_name: tbl_b_skey_material
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cons_material
+        object_name: tbl_c_cons_material
     gold:
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_dim_material
+        object_name: tbl_a_dim_material
       data_mart:
         enabled: false
-        object_name: tbl_mart_material
+        object_name: tbl_b_mart_material
 
   plant:
     source_type: cloud_storage
@@ -84,32 +84,32 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_raw_plant
+        object_name: tbl_a_raw_plant
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cdc_plant
+        object_name: tbl_b_cdc_plant
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_proc_plant
+        object_name: tbl_a_proc_plant
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_skey_plant
+        object_name: tbl_b_skey_plant
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cons_plant
+        object_name: tbl_c_cons_plant
     gold:
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_dim_plant
+        object_name: tbl_a_dim_plant
       data_mart:
         enabled: false
-        object_name: tbl_mart_plant
+        object_name: tbl_b_mart_plant
 
   # ── Facts ───────────────────────────────────────────
 
@@ -119,31 +119,31 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_raw_sales
+        object_name: tbl_a_raw_sales
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cdc_sales
+        object_name: tbl_b_cdc_sales
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_proc_sales
+        object_name: tbl_a_proc_sales
       skey:
         enabled: false                   # facts don't produce skey tables
-        object_name: tbl_skey_sales
+        object_name: tbl_b_skey_sales
       consolidation:
         enabled: true
         metadata_driven: false           # uses custom_sql — joins to dimension skey tables
-        object_name: tbl_cons_sales
+        object_name: tbl_c_cons_sales
     gold:
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_dim_sales
+        object_name: tbl_a_fact_sales
       data_mart:
         enabled: false
-        object_name: tbl_mart_sales
+        object_name: tbl_b_mart_sales
 
   # ── Reference ───────────────────────────────────────
 
@@ -153,25 +153,25 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_raw_component_bom
+        object_name: tbl_a_raw_component_bom
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_cdc_component_bom
+        object_name: tbl_b_cdc_component_bom
     silver:
       processed:
         enabled: false
-        object_name: tbl_proc_component_bom
+        object_name: tbl_a_proc_component_bom
       skey:
         enabled: false
-        object_name: tbl_skey_component_bom
+        object_name: tbl_b_skey_component_bom
       consolidation:
         enabled: false
-        object_name: tbl_cons_component_bom
+        object_name: tbl_c_cons_component_bom
     gold:
       dimensional:
         enabled: false
-        object_name: tbl_dim_component_bom
+        object_name: tbl_a_dim_component_bom
       data_mart:
         enabled: false
-        object_name: tbl_mart_component_bom
+        object_name: tbl_b_mart_component_bom
