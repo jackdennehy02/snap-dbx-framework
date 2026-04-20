@@ -20,30 +20,15 @@ CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.denn
 
 # COMMAND ----------
 
-import sys
-sys.path.insert(0, "../framework")
-
-from unity_catalog_manager import UnityManager
-
-uc = UnityManager(spark, catalog=CATALOG)
-uc.create_container("CATALOG", CATALOG)
-uc.create_container("SCHEMA", "01_bronze")
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## Imports
 
 # COMMAND ----------
 
-import dlt
+# DBTITLE 1,Cell 7
+from pyspark import pipelines as dp
 import yaml
 from pathlib import Path
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Config
 
 # COMMAND ----------
 
@@ -59,9 +44,11 @@ def load_raw_config(object_key: str) -> dict:
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 11
 def cloud_files_load(config: dict):
     """Load from cloud storage using cloudFiles, driven by the raw config YAML."""
     conn = config.get("connection", {})
+    ingestion_mode = config.get("ingestion_mode", "snapshot")
 
     options = {
         "cloudFiles.format": conn.get("cloud_storage_type", ""),
@@ -79,13 +66,12 @@ def cloud_files_load(config: dict):
             "false" if conn["cloud_ingestion_mode"] == "directory_listing" else "true"
         )
 
-    return spark.read.format("cloudFiles").options(**options).load(
+    # Use streaming for streaming ingestion, batch for snapshot
+    reader = spark.readStream if ingestion_mode == "streaming" else spark.read
+    return reader.format("cloudFiles").options(**options).load(
         conn.get("cloud_storage_path", "")
     )
 
-
-# def jdbc_load(config: dict): ...
-# def kafka_load(config: dict): ...
 
 # COMMAND ----------
 
@@ -94,29 +80,32 @@ def cloud_files_load(config: dict):
 
 # COMMAND ----------
 
-@dlt.table(name="tbl_a_raw_customer")
+dp.table(name="tbl_a_raw_customer")
 def raw_customer():
     return cloud_files_load(load_raw_config("customer"))
 
 
-@dlt.table(name="tbl_a_raw_material")
+"""
+@dp.table(name="tbl_a_raw_material")
 def raw_material():
     return cloud_files_load(load_raw_config("material"))
 
 
-@dlt.table(name="tbl_a_raw_plant")
+@dp.table(name="tbl_a_raw_plant")
 def raw_plant():
     return cloud_files_load(load_raw_config("plant"))
 
 
-@dlt.table(name="tbl_a_raw_sales")
+@dp.table(name="tbl_a_raw_sales")
 def raw_sales():
     return cloud_files_load(load_raw_config("sales"))
 
 
-@dlt.table(name="tbl_a_raw_component_bom")
+@dp.table(name="tbl_a_raw_component_bom")
 def raw_component_bom():
     return cloud_files_load(load_raw_config("component_bom"))
+
+"""
 
 # COMMAND ----------
 

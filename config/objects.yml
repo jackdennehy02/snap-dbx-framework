@@ -40,10 +40,17 @@ objects:
       dimensional:
         enabled: true
         metadata_driven: true
+<<<<<<< Updated upstream
         object_name: tbl_a_dim_customer
       data_mart:
         enabled: false
         object_name: tbl_b_mart_customer
+=======
+        object_name: dim_customer
+      data_mart:
+        enabled: false
+        object_name: mart_customer
+>>>>>>> Stashed changes
 
   material:
     source_type: cloud_storage
@@ -73,10 +80,17 @@ objects:
       dimensional:
         enabled: true
         metadata_driven: true
+<<<<<<< Updated upstream
         object_name: tbl_a_dim_material
       data_mart:
         enabled: false
         object_name: tbl_b_mart_material
+=======
+        object_name: dim_material
+      data_mart:
+        enabled: false
+        object_name: mart_material
+>>>>>>> Stashed changes
 
   plant:
     source_type: cloud_storage
@@ -106,10 +120,17 @@ objects:
       dimensional:
         enabled: true
         metadata_driven: true
+<<<<<<< Updated upstream
         object_name: tbl_a_dim_plant
       data_mart:
         enabled: false
         object_name: tbl_b_mart_plant
+=======
+        object_name: dim_plant
+      data_mart:
+        enabled: false
+        object_name: mart_plant
+>>>>>>> Stashed changes
 
   # ── Facts ───────────────────────────────────────────
 
@@ -140,10 +161,17 @@ objects:
       dimensional:
         enabled: true
         metadata_driven: true
+<<<<<<< Updated upstream
         object_name: tbl_a_fact_sales
       data_mart:
         enabled: false
         object_name: tbl_b_mart_sales
+=======
+        object_name: fact_sales
+      data_mart:
+        enabled: false
+        object_name: mart_sales
+>>>>>>> Stashed changes
 
   # ── Reference ───────────────────────────────────────
 
@@ -171,7 +199,14 @@ objects:
     gold:
       dimensional:
         enabled: false
+<<<<<<< Updated upstream
         object_name: tbl_a_dim_component_bom
       data_mart:
         enabled: false
         object_name: tbl_b_mart_component_bom
+=======
+        object_name: dim_component_bom
+      data_mart:
+        enabled: false
+        object_name: mart_component_bom
+>>>>>>> Stashed changes

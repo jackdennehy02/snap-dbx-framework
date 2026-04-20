@@ -1,0 +1,82 @@
+# config/02_silver/02a_processed/{object_name}.yml
+# ──────────────────────────────────────────────────────
+# Silver Processed — typecasting and basic cleansing only.
+#
+# Reads from the bronze CDC stream.
+# Scope: CAST, TRIM, NULLIF, date parsing.
+# No joins. No business logic. No skey resolution.
+# If it needs a join, it belongs in consolidation.
+#
+# The audit column renames below are standard for ALL
+# processed objects — do not remove them.
+# ──────────────────────────────────────────────────────
+
+# ── Source ──────────────────────────────────────────
+source_object: tbl_cdc_material
+
+# ── Target ──────────────────────────────────────────
+object_name: tbl_proc_material
+enabled: true
+catalog:                                 # override hop default
+schema:                                  # override hop default
+comment:                                 # Unity Catalog table COMMENT
+
+# ── Read / Write Behaviour ───────────────────────────
+write_mode: streaming_table
+read_mode: stream
+
+# ── Keys ─────────────────────────────────────────────
+primary_key_columns:                     # business key column(s)
+  # - col_a
+
+# ── Columns ──────────────────────────────────────────
+columns:
+
+  # ── Audit column renames (standard — do not remove) ──
+  # Rename Databricks Auto CDC system columns to __etl_ convention.
+
+  - source_col: __START_AT
+    target_col: __etl_effective_from
+    data_type: TIMESTAMP
+    is_nullable: false
+    is_audit_col: true
+
+  - source_col: __END_AT
+    target_col: __etl_effective_to
+    data_type: TIMESTAMP
+    expression: "COALESCE(__END_AT, CAST(ev_end_date AS TIMESTAMP))"
+    is_nullable: false
+    is_audit_col: true
+
+  - source_col:
+    target_col: __etl_is_current
+    data_type: BOOLEAN
+    expression: "__END_AT IS NULL"
+    is_nullable: false
+    is_audit_col: true
+
+  - source_col:
+    target_col: __etl_loaded_at
+    data_type: TIMESTAMP
+    expression: "current_timestamp()"
+    is_nullable: false
+    is_audit_col: true
+
+  # ── Business columns ─────────────────────────────────
+  # Add typecasting and cleansing below.
+  # Passthrough (no expression needed) if no transform required.
+  #
+  # - source_col: raw_amount
+  #   target_col: amount
+  #   data_type: DECIMAL(10,2)
+  #   expression: "CAST(raw_amount AS DECIMAL(10,2))"
+  #
+  # - source_col: customer_text
+  #   target_col: customer_text
+  #   data_type: STRING
+  #   expression: "NULLIF(TRIM(UPPER(customer_text)), '')"
+  #
+  # - source_col: event_date
+  #   target_col: event_date
+  #   data_type: DATE
+  #   expression: "TO_DATE(event_date, 'yyyy-MM-dd')"
