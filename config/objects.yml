@@ -1,0 +1,177 @@
+# config/objects.yml
+# ──────────────────────────────────────────────────────
+# Master object registry. One entry per object.
+#
+# The generator reads this file alongside hop_defaults.yml
+# to produce the per-layer config files for each object.
+# Only fields that differ from hop_defaults.yml are set —
+# anything left blank is inherited from the hop default.
+# ──────────────────────────────────────────────────────
+
+objects:
+
+  # ── Dimensions ─────────────────────────────────────
+
+  customer:
+    source_type: cloud_storage
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_raw_customer
+      cdc:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cdc_customer
+    silver:
+      processed:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_proc_customer
+      skey:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_skey_customer
+      consolidation:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cons_customer
+    gold:
+      dimensional:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_dim_customer
+      data_mart:
+        enabled: false
+        object_name: tbl_mart_customer
+
+  material:
+    source_type: cloud_storage
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_raw_material
+      cdc:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cdc_material
+    silver:
+      processed:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_proc_material
+      skey:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_skey_material
+      consolidation:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cons_material
+    gold:
+      dimensional:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_dim_material
+      data_mart:
+        enabled: false
+        object_name: tbl_mart_material
+
+  plant:
+    source_type: cloud_storage
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_raw_plant
+      cdc:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cdc_plant
+    silver:
+      processed:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_proc_plant
+      skey:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_skey_plant
+      consolidation:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cons_plant
+    gold:
+      dimensional:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_dim_plant
+      data_mart:
+        enabled: false
+        object_name: tbl_mart_plant
+
+  # ── Facts ───────────────────────────────────────────
+
+  sales:
+    source_type: cloud_storage
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_raw_sales
+      cdc:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cdc_sales
+    silver:
+      processed:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_proc_sales
+      skey:
+        enabled: false                   # facts don't produce skey tables
+        object_name: tbl_skey_sales
+      consolidation:
+        enabled: true
+        metadata_driven: false           # uses custom_sql — joins to dimension skey tables
+        object_name: tbl_cons_sales
+    gold:
+      dimensional:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_dim_sales
+      data_mart:
+        enabled: false
+        object_name: tbl_mart_sales
+
+  # ── Reference ───────────────────────────────────────
+
+  component_bom:
+    source_type: cloud_storage
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_raw_component_bom
+      cdc:
+        enabled: true
+        metadata_driven: true
+        object_name: tbl_cdc_component_bom
+    silver:
+      processed:
+        enabled: false
+        object_name: tbl_proc_component_bom
+      skey:
+        enabled: false
+        object_name: tbl_skey_component_bom
+      consolidation:
+        enabled: false
+        object_name: tbl_cons_component_bom
+    gold:
+      dimensional:
+        enabled: false
+        object_name: tbl_dim_component_bom
+      data_mart:
+        enabled: false
+        object_name: tbl_mart_component_bom
