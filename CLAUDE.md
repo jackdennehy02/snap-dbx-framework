@@ -30,11 +30,11 @@ Defines every object in the pipeline — what layers it flows through, its table
 
 - **Bronze has two sub-layers: raw and CDC.**
   - Raw (`tbl_raw_`) is append-only — every load is retained as full source history.
-  - CDC (`tbl_cdc_`) lives in bronze. Two views are created each run — `vw_raw_` (current raw load) and `vw_cdc_` (comparison view that derives N/I/C/D) — before N/C/D records are inserted into `tbl_cdc_`. Identical records are never written.
-- **Silver processed (`tbl_proc_`) is typecasting and basic cleansing only.** No joins, no business logic, no surrogate key resolution. If it needs a join, it belongs in CONS.
+  - CDC (`tbl_cdc_`) uses **Databricks Auto CDC** (`APPLY CHANGES INTO`) applied to `tbl_raw_`. Databricks maintains the SCD-2 history natively — no manual view comparison. Databricks generates its own system column names (`__START_AT`, `__END_AT`, `_change_type`).
+- **Silver processed (`tbl_proc_`) has two jobs:** rename the Databricks Auto CDC system columns to the `__etl_` convention (`__START_AT` → `__etl_effective_from`, `__END_AT` → `__etl_effective_to`, `_change_type` → `__etl_record_indicator`), then apply typecasting and basic cleansing. No joins, no business logic — if it needs a join it belongs in CONS.
 - **Silver processed reads from the bronze CDC stream**, not raw.
 - **SKEY is insert-only.** Once a surrogate key is assigned it never changes. SCD-2 objects generate a new skey per effective version.
-- **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_proc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. Views: `vw_raw_`, `vw_cdc_`. All `lower_snake_case`.
-- **`__etl_record_indicator` and `__etl_fprint` are introduced at Bronze CDC**, not raw.
+- **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_proc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. All `lower_snake_case`. No views needed — Auto CDC handles the comparison.
+- **`__etl_` columns are introduced at Silver Processed**, not bronze. Bronze CDC uses Databricks system column names.
 - **objects.yml is the orchestrator.** It drives generation of all per-layer config files. Don't edit individual layer configs without checking objects.yml first.
 - **Gold is the dimensional model.** Dimensions are SCD-2 for customer and material; plant is SCD-1. Facts carry surrogate keys resolved in the CONS layer.

@@ -10,32 +10,30 @@ This framework implements the Medallion Architecture on Databricks as a Databric
 Source Files (CSV / cloud storage)
      │
      ▼
-[ Bronze — Raw ]      tbl_raw_{object}    ── loading.yml ──   Append-only raw ingest. Full source history retained.
+[ Bronze — Raw ]        tbl_raw_{object}    ── loading.yml ──   Append-only raw ingest. Full source history retained.
      │
-     │  vw_raw_{object}   — view of current raw load
-     │  vw_cdc_{object}   — compares vw_raw to tbl_cdc; derives N/I/C/D indicator
-     ▼
-[ Bronze — CDC ]      tbl_cdc_{object}    ── hop.yml ──────   N/C/D records inserted. Identical records filtered.
+     ▼  (Databricks Auto CDC — APPLY CHANGES INTO)
+[ Bronze — CDC ]        tbl_cdc_{object}    ── hop.yml ──────   SCD-2 table maintained by Databricks Auto CDC.
      │
      ▼
-[ Silver — Processed ]  tbl_proc_{object}  ── hop.yml ──────  Typecasting and basic cleansing. Reads CDC stream.
+[ Silver — Processed ]  tbl_proc_{object}   ── hop.yml ──────   Renames Auto CDC columns to __etl_ convention.
+     │                                                           Typecasting and basic cleansing.
+     ▼
+[ Silver — SKEY ]       tbl_skey_{object}   ── hop.yml ──────   Surrogate key mapping. Business key → integer skey.
      │
      ▼
-[ Silver — SKEY ]     tbl_skey_{object}   ── hop.yml ──────   Surrogate key mapping. Business key → integer skey.
+[ Silver — CONS ]       tbl_cons_{object}   ── hop.yml ──────   Consolidation. Joins, skey resolution, business rules.
      │
      ▼
-[ Silver — CONS ]     tbl_cons_{object}   ── hop.yml ──────   Consolidation. Joins, skey resolution, business rules.
-     │
-     ▼
-[ Gold ]              tbl_dim_{object}    ── hop.yml ──────   Dimensional model. SCD-2 dimensions and fact tables.
-                      tbl_mart_{object}                       Aggregations and calculations for reporting.
+[ Gold ]                tbl_dim_{object}    ── hop.yml ──────   Dimensional model. SCD-2 dimensions and fact tables.
+                        tbl_mart_{object}                       Aggregations and calculations for reporting.
 ```
 
 | Layer | SETL Equivalent | Config Template | Purpose |
 |---|---|---|---|
 | Bronze Raw | STG | `loading.yml` | Physical source connection and raw ingest. Append-only — full ingestion history retained across loads. |
-| Bronze CDC | V_STG → PSH | `hop.yml` | Full table comparison via views. Inserts N/C/D records; filters identicals. |
-| Silver Processed | _(no direct equivalent)_ | `hop.yml` | Typecasting and basic cleansing. Reads from bronze CDC stream. |
+| Bronze CDC | V_STG → PSH | `hop.yml` | Databricks Auto CDC (`APPLY CHANGES INTO`) applied to `tbl_raw_`. Maintains SCD-2 history natively. |
+| Silver Processed | _(no direct equivalent)_ | `hop.yml` | Renames Databricks Auto CDC columns to the `__etl_` naming convention. Typecasting and basic cleansing. |
 | Silver SKEY | SKEY | `hop.yml` | Surrogate key mapping. Insert-only. New skey per effective version for SCD-2 objects. |
 | Silver CONS | V_CONS | `hop.yml` | Consolidation and transformation. Joins, skey resolution, business rule application. |
 | Gold Dimensional | DIM / FACT | `hop.yml` | Final dimensional model. SCD-2 dimensions and fact tables. |
@@ -48,11 +46,11 @@ Source Files (CSV / cloud storage)
 Three config levels — lower levels override higher:
 
 ```
-config/objects.yml                        ← master object registry; drives file generation
-config_template/hop_defaults.yml          ← shared defaults per hop (write_mode, read_mode, schema)
-  └── config/loading/{object}.yml         ← bronze raw ingestion config per object
-  └── config/{hop}/{sublayer}/{object}.yml ← hop-level config per object
-        └── runtime parameters            ← deployment-time catalog/schema binding
+config/objects.yml                          ← master object registry; drives file generation
+config_template/hop_defaults.yml            ← shared defaults per hop (write_mode, read_mode, schema)
+  └── config/loading/{object}.yml           ← bronze raw ingestion config per object
+  └── config/{hop}/{sublayer}/{object}.yml  ← hop-level config per object
+        └── runtime parameters              ← deployment-time catalog/schema binding
 ```
 
 `objects.yml` is the orchestrator. It defines every object in the pipeline, what layers it flows through, and the table name at each layer. A generator reads it alongside `hop_defaults.yml` to produce the per-layer YAML files. Blank fields inherit from the hop default.
@@ -61,7 +59,7 @@ config_template/hop_defaults.yml          ← shared defaults per hop (write_mod
 
 ## Bronze Raw (`loading.yml`)
 
-Bronze raw is the raw landing zone. Records are appended on each load — the full ingestion history is retained, including duplicates and source errors. Schema is inferred; no column mappings are applied.
+Bronze raw is the raw landing zone. Records are appended on each load — the full ingestion history is retained across loads. Schema is inferred; no column mappings are applied.
 
 ```yaml
 source_type: cloud_storage | jdbc | kafka | lakehouse_federation
@@ -70,7 +68,6 @@ merge_strategy: append                   # bronze raw is always append — full 
 object_category: reference | transactional | dimension | fact
 
 connection:
-  # cloud_storage
   source_connection: <volume path>
   cloud_storage_type: csv | parquet | json | avro
   header: true
@@ -85,21 +82,17 @@ data_items: null                         # null = SELECT *
 
 ## Bronze CDC (`hop.yml`)
 
-CDC lives in bronze. Two views are created each run before the CDC table is written:
+Bronze CDC uses Databricks' native **Auto CDC** (`APPLY CHANGES INTO`) rather than a manual view-based comparison. The framework applies `APPLY CHANGES INTO` against `tbl_raw_` to maintain a SCD-2 history table automatically.
 
-- **`vw_raw_{object}`** — a view over the current raw load (latest records from `tbl_raw_`)
-- **`vw_cdc_{object}`** — compares `vw_raw_` against the existing `tbl_cdc_` table to derive the change indicator
+Databricks Auto CDC generates its own system column names:
 
-The CDC table is then written by inserting only N, C, and D records. Identical records are filtered and never written.
-
-Change indicators follow SETL conventions:
-
-| Indicator | Meaning |
+| Databricks Column | Description |
 |---|---|
-| N | New — business key not seen before |
-| I | Identical — fingerprint matches prior load (filtered out, not written) |
-| C | Changed — business key seen before, fingerprint differs |
-| D | Deleted — business key present in prior CDC but absent from current full load |
+| `__START_AT` | When this version of the record became effective |
+| `__END_AT` | When this version was superseded (`NULL` if current) |
+| `_change_type` | INSERT / UPDATE_PREIMAGE / UPDATE_POSTIMAGE / DELETE |
+
+These are renamed to the framework's `__etl_` convention in the Processed layer.
 
 ```yaml
 object_name: tbl_cdc_{object}
@@ -110,33 +103,47 @@ source_schema: bronze
 primary_key_columns:
   - {business_key}
 
-columns:
-  - source_col: {col}
-    target_col: {col}
-    data_type: STRING
-    is_tracked: true        # contributes to __etl_fprint; change in tracked field = C indicator
+# tracked columns drive the SCD-2 history — changes to these create a new version
+tracked_columns:
+  - {col_a}
+  - {col_b}
 ```
-
-`__etl_record_indicator` and `__etl_fprint` are added at this layer.
 
 ---
 
 ## Silver Processed (`hop.yml`)
 
-The processed layer reads directly from the bronze CDC stream. Its sole purpose is typecasting and basic cleansing — no joins, no business logic, no surrogate key resolution. It produces clean, correctly-typed records for the SKEY layer.
+Processed has two responsibilities:
 
-Typical operations:
-- `CAST(raw_col AS DECIMAL(10,2))`
-- `NULLIF(TRIM(UPPER(text_col)), '')`
-- Parsing composite fields (e.g. splitting a text date into a proper `DATE`)
+1. **Rename Databricks Auto CDC columns** to the framework's `__etl_` naming convention
+2. **Typecast and basic cleansing** — `CAST`, `TRIM`, `NULLIF`, date parsing
+
+It reads from the bronze CDC stream. No joins, no business logic, no surrogate key resolution — if it needs a join it belongs in CONS.
 
 ```yaml
 object_name: tbl_proc_{object}
 write_mode: streaming_table
 read_mode: stream
-source_schema: bronze       # sources from tbl_cdc_{object}
+source_schema: bronze
 
 columns:
+  # Rename Auto CDC system columns to __etl_ convention
+  - source_col: __START_AT
+    target_col: __etl_effective_from
+    data_type: TIMESTAMP
+    is_audit_col: true
+
+  - source_col: __END_AT
+    target_col: __etl_effective_to
+    data_type: TIMESTAMP
+    is_audit_col: true
+
+  - source_col: _change_type
+    target_col: __etl_record_indicator
+    data_type: STRING
+    is_audit_col: true
+
+  # Business columns — typecasting and cleansing
   - source_col: raw_amount
     target_col: amount
     data_type: DECIMAL(10,2)
@@ -148,13 +155,11 @@ columns:
     expression: "NULLIF(TRIM(UPPER(customer_text)), '')"
 ```
 
-No SCD-2 logic, no fingerprinting, no joins. If it requires a join, it belongs in CONS.
-
 ---
 
 ## Silver SKEY (`hop.yml`)
 
-SKEY maps each business key to an integer surrogate key. Insert-only — once a key is assigned it never changes. For SCD-2 dimensions, a new skey is generated per effective version (keyed on business key + effective from date).
+SKEY maps each business key to an integer surrogate key. Insert-only — once a key is assigned it never changes. For SCD-2 dimensions, a new skey is generated per effective version (keyed on business key + `__etl_effective_from`).
 
 ```yaml
 object_name: tbl_skey_{object}
@@ -170,7 +175,7 @@ primary_key_columns:
 
 ## Silver CONS (`hop.yml`)
 
-Consolidation is the main transformation layer. It joins the processed and SKEY tables, applies business rules, resolves surrogate keys, and produces the clean, enriched view consumed by gold.
+Consolidation is the main transformation layer. It joins the processed and SKEY tables, applies business rules, and produces the clean, enriched view consumed by gold.
 
 `custom_sql` is the norm here — consolidation logic typically spans multiple tables.
 
@@ -184,7 +189,9 @@ custom_sql: >
     proc.{business_key},
     sk.{object}_skey,
     proc.{col},
-    ...
+    proc.__etl_effective_from,
+    proc.__etl_effective_to,
+    proc.__etl_record_indicator
   FROM STREAM(silver.tbl_proc_{object}) proc
   INNER JOIN silver.tbl_skey_{object} sk ON proc.{business_key} = sk.{business_key}
 ```
@@ -193,7 +200,7 @@ custom_sql: >
 
 ## Gold (`hop.yml`)
 
-Gold defaults to `materialized_view` with `read_mode: snapshot`. Dimensions carry SCD-2 audit columns from silver; facts carry surrogate key references to each dimension.
+Gold defaults to `materialized_view` with `read_mode: snapshot`. Dimensions carry `__etl_effective_from/to` from silver; facts carry surrogate key references to each dimension.
 
 ```yaml
 # Dimension
@@ -214,26 +221,28 @@ read_mode: snapshot
 
 | Column | Bronze Raw | Bronze CDC | Silver Processed | Silver SKEY | Silver CONS | Gold |
 |---|---|---|---|---|---|---|
-| `__etl_loaded_at` | yes | yes | yes | yes | yes | — |
-| `__etl_record_indicator` | — | yes | yes | — | yes | — |
-| `__etl_fprint` | — | yes | — | — | — | — |
-| `__etl_effective_from` | — | SCD-2 | SCD-2 | SCD-2 | SCD-2 | inherited |
-| `__etl_effective_to` | — | SCD-2 | — | — | SCD-2 | inherited |
-| `__etl_is_current` | — | SCD-2 | — | — | SCD-2 | inherited |
+| `__etl_loaded_at` | yes | — | yes | yes | yes | — |
+| `__etl_record_indicator` | — | _(Auto CDC)_ | yes (renamed) | — | yes | — |
+| `__etl_fprint` | — | — | — | — | — | — |
+| `__etl_effective_from` | — | _(Auto CDC)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
+| `__etl_effective_to` | — | _(Auto CDC)_ | yes (renamed) | — | SCD-2 | inherited |
+| `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
+
+> Bronze CDC columns are Databricks system columns (`__START_AT`, `__END_AT`, `_change_type`). They are renamed to the `__etl_` convention in Processed.
 
 ---
 
 ## Naming Conventions
 
-| Layer | Table Prefix | View Prefix | Example |
-|---|---|---|---|
-| Bronze Raw | `tbl_raw_` | `vw_raw_` | `tbl_raw_customer`, `vw_raw_customer` |
-| Bronze CDC | `tbl_cdc_` | `vw_cdc_` | `tbl_cdc_customer`, `vw_cdc_customer` |
-| Silver Processed | `tbl_proc_` | — | `tbl_proc_customer` |
-| Silver SKEY | `tbl_skey_` | — | `tbl_skey_customer` |
-| Silver CONS | `tbl_cons_` | — | `tbl_cons_customer` |
-| Gold Dimensional | `tbl_dim_` | — | `tbl_dim_customer` |
-| Gold Data Mart | `tbl_mart_` | — | `tbl_mart_sales` |
+| Layer | Table Prefix | Example |
+|---|---|---|
+| Bronze Raw | `tbl_raw_` | `tbl_raw_customer` |
+| Bronze CDC | `tbl_cdc_` | `tbl_cdc_customer` |
+| Silver Processed | `tbl_proc_` | `tbl_proc_customer` |
+| Silver SKEY | `tbl_skey_` | `tbl_skey_customer` |
+| Silver CONS | `tbl_cons_` | `tbl_cons_customer` |
+| Gold Dimensional | `tbl_dim_` | `tbl_dim_customer` |
+| Gold Data Mart | `tbl_mart_` | `tbl_mart_sales` |
 
 All names: `lower_snake_case`.
 

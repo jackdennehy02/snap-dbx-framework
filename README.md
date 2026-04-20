@@ -9,12 +9,12 @@ Source Files (CSV / cloud storage)
      │
      ▼
 [ Bronze — Raw ]        tbl_raw_{object}    Append-only raw ingest. Full source history retained.
-     │  vw_raw_{object} + vw_cdc_{object}   Views derive N/I/C/D change indicator each run.
+     │  Databricks Auto CDC (APPLY CHANGES INTO)
      ▼
-[ Bronze — CDC ]        tbl_cdc_{object}    N/C/D records inserted. Identicals filtered.
+[ Bronze — CDC ]        tbl_cdc_{object}    SCD-2 history maintained natively by Databricks.
      │
      ▼
-[ Silver — Processed ]  tbl_proc_{object}   Typecasting and basic cleansing. Reads CDC stream.
+[ Silver — Processed ]  tbl_proc_{object}   Renames Auto CDC columns to __etl_ convention. Typecasting and cleansing.
      │
      ▼
 [ Silver — SKEY ]       tbl_skey_{object}   Surrogate key mapping. Business key → integer skey.
@@ -30,8 +30,8 @@ Source Files (CSV / cloud storage)
 | Layer | SETL Equivalent | Description |
 |---|---|---|
 | Bronze Raw | STG | Raw ingest from source. Append-only — full ingestion history retained across loads. |
-| Bronze CDC | V_STG → PSH | Full table comparison via views. Inserts N/C/D records; filters identicals. |
-| Silver Processed | _(none)_ | Typecasting and basic cleansing only. No joins, no business logic. |
+| Bronze CDC | V_STG → PSH | Databricks Auto CDC (`APPLY CHANGES INTO`) applied to raw. Maintains SCD-2 history natively. |
+| Silver Processed | _(none)_ | Renames Auto CDC system columns to `__etl_` convention. Typecasting and basic cleansing. |
 | Silver SKEY | SKEY | Surrogate key mapping. Insert-only. New skey per effective version for SCD-2 objects. |
 | Silver CONS | V_CONS | Consolidation and transformation. Joins, skey resolution, business rule application. |
 | Gold Dimensional | DIM / FACT | Final dimensional model. SCD-2 dimensions and fact tables. |
@@ -89,8 +89,7 @@ All names use `lower_snake_case`.
 | Column | Introduced |
 |---|---|
 | `__etl_loaded_at` | Bronze Raw |
-| `__etl_record_indicator` | Bronze CDC |
-| `__etl_fprint` | Bronze CDC |
-| `__etl_effective_from` | Bronze CDC (SCD-2 only) |
-| `__etl_effective_to` | Bronze CDC (SCD-2 only) |
-| `__etl_is_current` | Bronze CDC (SCD-2 only) |
+| `__etl_record_indicator` | Silver Processed (renamed from Databricks `_change_type`) |
+| `__etl_effective_from` | Silver Processed (renamed from Databricks `__START_AT`) |
+| `__etl_effective_to` | Silver Processed (renamed from Databricks `__END_AT`) |
+| `__etl_is_current` | Silver Processed (derived) |
