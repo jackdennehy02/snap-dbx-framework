@@ -90,7 +90,6 @@ Databricks Auto CDC generates its own system column names:
 |---|---|
 | `__START_AT` | When this version of the record became effective |
 | `__END_AT` | When this version was superseded (`NULL` if current) |
-| `_change_type` | INSERT / UPDATE_PREIMAGE / UPDATE_POSTIMAGE / DELETE |
 
 These are renamed to the framework's `__etl_` convention in the Processed layer.
 
@@ -136,11 +135,6 @@ columns:
   - source_col: __END_AT
     target_col: __etl_effective_to
     data_type: TIMESTAMP
-    is_audit_col: true
-
-  - source_col: _change_type
-    target_col: __etl_record_indicator
-    data_type: STRING
     is_audit_col: true
 
   # Business columns — typecasting and cleansing
@@ -222,13 +216,11 @@ read_mode: snapshot
 | Column | Bronze Raw | Bronze CDC | Silver Processed | Silver SKEY | Silver CONS | Gold |
 |---|---|---|---|---|---|---|
 | `__etl_loaded_at` | yes | — | yes | yes | yes | — |
-| `__etl_record_indicator` | — | _(Auto CDC)_ | yes (renamed) | — | yes | — |
-| `__etl_fprint` | — | — | — | — | — | — |
-| `__etl_effective_from` | — | _(Auto CDC)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
-| `__etl_effective_to` | — | _(Auto CDC)_ | yes (renamed) | — | SCD-2 | inherited |
+| `__etl_effective_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
+| `__etl_effective_to` | — | _(Auto CDC — `__END_AT`)_ | yes (renamed) | — | SCD-2 | inherited |
 | `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
 
-> Bronze CDC columns are Databricks system columns (`__START_AT`, `__END_AT`, `_change_type`). They are renamed to the `__etl_` convention in Processed.
+> `__etl_record_indicator` is not used — Auto CDC handles change detection internally. Record state is determined from `__etl_effective_to IS NULL` (`__etl_is_current`).
 
 ---
 

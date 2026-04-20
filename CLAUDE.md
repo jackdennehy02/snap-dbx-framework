@@ -35,6 +35,7 @@ Defines every object in the pipeline — what layers it flows through, its table
 - **Silver processed reads from the bronze CDC stream**, not raw.
 - **SKEY is insert-only.** Once a surrogate key is assigned it never changes. SCD-2 objects generate a new skey per effective version.
 - **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_proc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. All `lower_snake_case`. No views needed — Auto CDC handles the comparison.
-- **`__etl_` columns are introduced at Silver Processed**, not bronze. Bronze CDC uses Databricks system column names.
+- **`__etl_record_indicator` is dropped** — Auto CDC handles change detection internally. Record state is determined by `__etl_is_current` (derived from `__END_AT IS NULL`).
+- **`__etl_` columns are introduced at Silver Processed**, not bronze. Bronze CDC uses Databricks system column names (`__START_AT`, `__END_AT`).
 - **objects.yml is the orchestrator.** It drives generation of all per-layer config files. Don't edit individual layer configs without checking objects.yml first.
 - **Gold is the dimensional model.** Dimensions are SCD-2 for customer and material; plant is SCD-1. Facts carry surrogate keys resolved in the CONS layer.

@@ -89,7 +89,8 @@ All names use `lower_snake_case`.
 | Column | Introduced |
 |---|---|
 | `__etl_loaded_at` | Bronze Raw |
-| `__etl_record_indicator` | Silver Processed (renamed from Databricks `_change_type`) |
 | `__etl_effective_from` | Silver Processed (renamed from Databricks `__START_AT`) |
 | `__etl_effective_to` | Silver Processed (renamed from Databricks `__END_AT`) |
-| `__etl_is_current` | Silver Processed (derived) |
+| `__etl_is_current` | Silver Processed (derived from `__END_AT IS NULL`) |
+
+`__etl_record_indicator` is not used — Auto CDC handles change detection internally.
