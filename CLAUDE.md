@@ -11,19 +11,15 @@ Before doing any work in this project, read the following documents in order. Th
 The canonical reference for the pipeline layers, SETL mapping, naming conventions, audit columns, and config inheritance model. If something contradicts this doc, flag it rather than assuming.
 
 ### 2. Master Object Registry
-**[config/objects.yaml](config/objects.yaml)**
+**[config/objects.yml](config/objects.yml)**
 Defines every object in the pipeline — what layers it flows through, its table name at each layer, load behaviour, and whether it's metadata-driven. The generator uses this to produce per-layer config files.
 
 ### 3. Config Templates
-**[config_template/objects.yaml](config_template/objects.yaml)** — schema and field documentation for the master object registry.
-**[config_template/loading.yaml](config_template/loading.yaml)** — schema for bronze ingestion configs (`config/loading/`).
-**[config_template/hop.yaml](config_template/hop.yaml)** — schema for silver and gold hop configs (`config/{hop}/`).
+**[config_template/objects.yml](config_template/objects.yml)** — schema and field documentation for the master object registry.
+**[config_template/loading.yml](config_template/loading.yml)** — schema for bronze raw ingestion configs (`config/loading/`).
+**[config_template/hop.yml](config_template/hop.yml)** — schema for all hop configs (bronze CDC, silver, gold).
 
-### 4. Hop Defaults
-**[config_template/hop_defaults.yaml](config_template/hop_defaults.yaml)**
-Shared defaults per hop. Object-level configs only need to set fields that differ from these.
-
-### 5. Project Context
+### 4. Project Context
 **[../../raw_docs/SETL_framework_matillion](../../raw_docs/SETL_framework_matillion)** — Snap's SETL framework documentation. This is the Matillion/Snowflake implementation this project mirrors on Databricks.
 **[../../raw_docs/final_target_potential_data_model.txt](../../raw_docs/final_target_potential_data_model.txt)** — Target data model (DBML format). Gold layer table definitions, relationships, and SCD-2 decisions.
 **[../../project_brief](../../project_brief)** — Project brief. Scope, goals, and constraints.
@@ -32,10 +28,13 @@ Shared defaults per hop. Object-level configs only need to set fields that diffe
 
 ## Key Decisions to Carry Forward
 
-- **Bronze is append-only.** Every load is retained as raw history. No overwrites.
-- **CDC (Silver) does full table comparison.** It compares the current bronze state against what's already in the CDC table and writes only N/C/D records through. Identical records are filtered.
+- **Bronze has two sub-layers: raw and CDC.**
+  - Raw (`tbl_raw_`) is append-only — every load is retained as full source history.
+  - CDC (`tbl_cdc_`) lives in bronze. Two views are created each run — `vw_raw_` (current raw load) and `vw_cdc_` (comparison view that derives N/I/C/D) — before N/C/D records are inserted into `tbl_cdc_`. Identical records are never written.
+- **Silver processed (`tbl_proc_`) is typecasting and basic cleansing only.** No joins, no business logic, no surrogate key resolution. If it needs a join, it belongs in CONS.
+- **Silver processed reads from the bronze CDC stream**, not raw.
 - **SKEY is insert-only.** Once a surrogate key is assigned it never changes. SCD-2 objects generate a new skey per effective version.
-- **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. All `lower_snake_case`.
-- **objects.yaml is the orchestrator.** It drives generation of all per-layer config files. Don't edit individual layer configs without checking objects.yaml first.
-- **Config is metadata-driven by default.** `metadata_driven: false` means the object requires hand-written SQL in Databricks — flag this clearly.
+- **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_proc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. Views: `vw_raw_`, `vw_cdc_`. All `lower_snake_case`.
+- **`__etl_record_indicator` and `__etl_fprint` are introduced at Bronze CDC**, not raw.
+- **objects.yml is the orchestrator.** It drives generation of all per-layer config files. Don't edit individual layer configs without checking objects.yml first.
 - **Gold is the dimensional model.** Dimensions are SCD-2 for customer and material; plant is SCD-1. Facts carry surrogate keys resolved in the CONS layer.
