@@ -1,0 +1,99 @@
+# config/{hop}/{object_name}.yaml
+# ──────────────────────────────────────────────────────
+# Hop Object Configuration Template
+#
+# One file per object per hop.
+# Fields left blank inherit from hop_defaults.yaml.
+# ──────────────────────────────────────────────────────
+
+# ── Source ──────────────────────────────────────────
+source_catalog:                          # override if source isn't the default upstream hop catalog
+source_schema:                           # override if source isn't the default upstream hop schema
+source_object:                           # required — the table/view this object reads from
+
+# ── Target ──────────────────────────────────────────
+object_name: tbl_skey_material
+object_alias:                            # optional display name for Streamlit app
+enabled: true                            # false = skipped during pipeline execution
+catalog:                                 # override hop default catalog
+schema:                                  # override hop default schema
+comment:                                 # Unity Catalog table COMMENT
+
+# ── Read / Write Behaviour ──────────────────────────
+write_mode:                              # streaming_table | materialized_view | permanent_table
+read_mode:                               # stream (wraps source in STREAM()) | snapshot (reads full table)
+filter:                                  # appended to WHERE clause, e.g. "is_active = true AND region = 'UK'"
+
+# ── Keys & Merge ────────────────────────────────────
+primary_key_columns:                     # business keys for merge/dedup; inherited from bronze if null
+  # - col_a
+  # - col_b
+
+# ── SCD2 ────────────────────────────────────────────
+create_scd2_view: false                  # if true, generates vw_{object_name}_current filtered to __etl_is_current = TRUE
+scd2_view_name:                          # custom view name; defaults to vw_{object_name}_current
+
+# ── SQL Override ────────────────────────────────────
+# When set, column mappings below are ignored entirely.
+# Use for complex joins, unions, or anything that doesn't
+# fit the column mapping pattern.
+custom_sql:                              # full SQL string executed as-is
+  # e.g. >
+  #   SELECT
+  #     a.title_id,
+  #     a.title_type,
+  #     b.average_rating
+  #   FROM STREAM(dev.silver.dim_titles) a
+  #   LEFT JOIN dev.silver.fact_ratings b
+  #     ON a.title_id = b.title_id
+
+# ── Column Mappings ─────────────────────────────────
+# Each entry generates one column in the target table.
+#
+# Rules:
+#   - source_col + no expression     → straight rename/passthrough
+#   - source_col + expression        → transformation on that source column
+#   - no source_col + expression     → derived/computed column
+#   - is_audit_col: true             → framework-managed, hidden from Streamlit editor
+#
+# Constraint fields map directly to DLT expectations:
+#   - constraint_name                → expectation name
+#   - constraint_expression          → SQL boolean, e.g. "amount > 0"
+#   - constraint_on_violation        → WARN (log), DROP (filter out), FAIL (abort pipeline)
+#
+# Fields left blank default to:
+#   - expression: null (passthrough)
+#   - is_nullable: true
+#   - is_audit_col: false
+#   - constraint_*: null (no expectation)
+
+columns:
+
+  # ── Passthrough with rename ──
+  # - source_col:
+  #   target_col:
+  #   data_type: STRING
+
+  # ── Transformation ──
+  # - source_col: raw_amount
+  #   target_col: amount
+  #   data_type: DECIMAL(10,2)
+  #   expression: "CAST(raw_amount AS DECIMAL(10,2))"
+  #   is_nullable: false
+  #   constraint_name: valid_amount
+  #   constraint_expression: "amount > 0 AND amount < 1000000"
+  #   constraint_on_violation: DROP
+
+  # ── Derived column (no source) ──
+  # - source_col:
+  #   target_col: is_high_value
+  #   data_type: BOOLEAN
+  #   expression: "CAST(raw_amount AS DECIMAL(10,2)) > 10000"
+
+  # ── Audit column (framework-managed) ──
+  # - source_col:
+  #   target_col: __etl_loaded_at
+  #   data_type: TIMESTAMP
+  #   expression: "current_timestamp()"
+  #   is_nullable: false
+  #   is_audit_col: true
