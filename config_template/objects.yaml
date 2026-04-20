@@ -1,0 +1,79 @@
+# config/objects.yaml
+# ──────────────────────────────────────────────────────
+# Master object registry. One entry per object.
+#
+# The generator reads this file alongside hop_defaults.yaml
+# to produce the per-layer config files for each object.
+# Only set fields that differ from hop_defaults.yaml — anything
+# left blank is inherited from the hop default.
+#
+# Naming convention: {layer}_{object} (e.g. bronze_customer)
+# Override object_name at any layer level to deviate from this.
+# ──────────────────────────────────────────────────────
+
+objects:
+
+  # ── Object Name ────────────────────────────────────
+  # Replace with the logical object name (e.g. customer, sales).
+  <object_name>:
+
+    object_alias:                          # optional display name
+    source_type:                           # cloud_storage | jdbc | kafka | lakehouse_federation
+
+    # ── Bronze ─────────────────────────────────────────
+    # Raw ingestion from source. Produces config/loading/{object}.yml.
+    bronze:
+      enabled:                             # true | false — false skips generation entirely
+      metadata_driven:                     # true = driven by YAML; false means manual development in Databricks
+      catalog:                             # override hop default
+      schema:                             # override hop default
+      object_name:                         # override naming convention
+
+    # ── Silver ─────────────────────────────────────────
+    # Transformation layer. Each sub-section produces a separate config file.
+    # Disable any sub-section by setting enabled: false.
+    silver:
+
+      # CDC — applies SCD2 logic; produces config/silver/cdc/{object}.yml
+      cdc:
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:
+
+      # skey — surrogate key table; produces config/silver/skey/{object}.yml
+      skey:
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:
+
+      # consolidation — merges/joins silver objects; produces config/silver/consolidation/{object}.yml
+      consolidation:
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:
+
+    # ── Gold ───────────────────────────────────────────
+    # Consumption layer. Each sub-section produces a separate config file.
+    gold:
+
+      # dimensional — dim_ / fact_ tables; produces config/gold/dimensional/{object}.yml
+      dimensional:
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:
+
+      # data_mart — mart-level aggregations; produces config/gold/data_mart/{object}.yml
+      data_mart:
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:
