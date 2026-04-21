@@ -20,7 +20,7 @@
 source_object: tbl_proc_plant
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_skey_plant
+object_name: tbl_b_skey_plant
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

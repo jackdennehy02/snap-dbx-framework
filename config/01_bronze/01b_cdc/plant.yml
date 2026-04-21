@@ -16,7 +16,7 @@
 source_object: tbl_raw_plant
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_cdc_plant
+object_name: tbl_b_cdc_plant
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

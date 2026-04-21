@@ -20,7 +20,7 @@
 source_object: tbl_proc_material
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_skey_material
+object_name: tbl_b_skey_material
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

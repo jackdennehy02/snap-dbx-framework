@@ -16,7 +16,7 @@
 source_object: tbl_raw_customer
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_cdc_customer
+object_name: tbl_b_cdc_customer
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

@@ -15,7 +15,7 @@
 source_object: tbl_cdc_sales
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_proc_sales
+object_name: tbl_a_proc_sales
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

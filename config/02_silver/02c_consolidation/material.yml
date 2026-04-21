@@ -12,7 +12,7 @@ source_schema:                           # override if source isn't the default 
 source_object:                           # required — the table/view this object reads from
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_cons_material
+object_name: tbl_c_cons_material
 object_alias:                            # optional display name for Streamlit app
 enabled: true                            # false = skipped during pipeline execution
 catalog:                                 # override hop default catalog

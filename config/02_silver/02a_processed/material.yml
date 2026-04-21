@@ -15,7 +15,7 @@
 source_object: tbl_cdc_material
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_proc_material
+object_name: tbl_a_proc_material
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default

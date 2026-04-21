@@ -16,7 +16,7 @@
 source_object: tbl_raw_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_cdc_component_bom
+object_name: tbl_b_cdc_component_bom
 enabled: true
 catalog:                                 # override hop default
 schema:                                  # override hop default
