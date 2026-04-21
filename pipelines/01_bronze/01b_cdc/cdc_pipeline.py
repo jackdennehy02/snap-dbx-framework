@@ -16,10 +16,11 @@ SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
 CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
 # Framework audit columns added at raw ingest — never source data, never tracked.
-_ETL_AUDIT_COLUMNS = ["_etl_loaded_at", "_metadata_file_modification_time"]
+_ETL_AUDIT_COLUMNS = ["__etl_loaded_at", "__file_modification_time"]
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 3
 
 def load_objects() -> list[str]:
     """Return object keys that have bronze CDC enabled in objects.yml."""
@@ -39,7 +40,7 @@ def load_cdc_config(object_key: str) -> dict:
 
 
 def register_cdc_table(object_key: str):
-    """Register a CDC table from YAML config — tracked (APPLY CHANGES INTO) or untracked (full overwrite)."""
+    """Register a CDC table from YAML config — tracked (AUTO CDC) or untracked (full overwrite)."""
     config = load_cdc_config(object_key)
 
     table_name = config["object_name"]
@@ -59,7 +60,7 @@ def register_cdc_table(object_key: str):
             comment=config.get("comment"),
         )
         def _load():
-            w = Window.partitionBy(*keys).orderBy(F.col("_etl_loaded_at").desc())
+            w = Window.partitionBy(*keys).orderBy(F.col("__etl_loaded_at").desc())
             return (
                 spark.read.table(f"{catalog}.{schema}.{source_object}")
                 .withColumn("_rn", F.row_number().over(w))
@@ -70,15 +71,14 @@ def register_cdc_table(object_key: str):
 
     sequence_by = config.get("sequence_by")
 
-    if not keys:
-        raise ValueError(f"{object_key}: 'keys' is required for CDC.")
     if not sequence_by:
         raise ValueError(f"{object_key}: 'sequence_by' is required for CDC.")
 
     full_table_name = f"{catalog}.{schema}.{table_name}"
+    source_table_name = f"{catalog}.{schema}.{source_object}"
 
     # create_streaming_table is idempotent — no-ops if the table already exists.
-    # Required before apply_changes so DLT has a target to write into on first run.
+    # Required before create_auto_cdc_flow so it has a target to write into on first run.
     dp.create_streaming_table(
         name=full_table_name,
         comment=config.get("comment"),
@@ -86,7 +86,7 @@ def register_cdc_table(object_key: str):
 
     kwargs = dict(
         target=full_table_name,
-        source=spark.readStream.table(f"{catalog}.{schema}.{source_object}"),
+        source=source_table_name,
         keys=keys,
         sequence_by=sequence_by,
         stored_as_scd_type=config.get("scd_type", 2),
@@ -98,10 +98,8 @@ def register_cdc_table(object_key: str):
         kwargs["apply_as_deletes"] = config["apply_as_deletes"]
     if config.get("track_history_column_list"):
         kwargs["track_history_column_list"] = config["track_history_column_list"]
-    if config.get("comment"):
-        kwargs["comment"] = config["comment"]
 
-    dp.apply_changes(**kwargs)
+    dp.create_auto_cdc_flow(**kwargs)
 
 
 # COMMAND ----------

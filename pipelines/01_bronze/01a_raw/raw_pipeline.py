@@ -118,9 +118,9 @@ def register_raw_table(object_key: str):
 
         return (
             df
-            .withColumn("_metadata_file_modification_time",
+            .withColumn("__file_modification_time",
                         F.col("_metadata.file_modification_time"))
-            .withColumn("_etl_loaded_at", F.current_timestamp())
+            .withColumn("__etl_loaded_at", F.current_timestamp())
         )
 
 
