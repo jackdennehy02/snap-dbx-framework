@@ -60,7 +60,7 @@ def register_cdc_table(object_key: str):
             comment=config.get("comment"),
         )
         def _load():
-            w = Window.partitionBy(*keys).orderBy(F.col("__etl_loaded_at").desc())
+            w = Window.partitionBy(*keys).orderBy(F.col("__file_modification_time").desc())
             return (
                 spark.read.table(f"{catalog}.{schema}.{source_object}")
                 .withColumn("_rn", F.row_number().over(w))

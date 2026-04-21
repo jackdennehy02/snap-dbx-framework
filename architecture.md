@@ -76,7 +76,12 @@ connection:
 data_items: null                         # null = SELECT *
 ```
 
-`__etl_loaded_at` is appended by the framework at ingest time.
+The framework appends two audit columns at ingest time:
+
+| Column | Source |
+|---|---|
+| `__etl_loaded_at` | `current_timestamp()` — when the record was loaded |
+| `__file_modification_time` | `_metadata.file_modification_time` — when the source file was last modified |
 
 ---
 
@@ -119,6 +124,8 @@ Processed has two responsibilities:
 
 It reads from the bronze CDC stream. No joins, no business logic, no surrogate key resolution — if it needs a join it belongs in CONS.
 
+The framework automatically applies the Auto CDC column renames (`__START_AT` → `__etl_effective_from`, `__END_AT` → `__etl_effective_to`, `__etl_is_current`) — these do not appear in the per-object YAML config.
+
 ```yaml
 object_name: tbl_proc_{object}
 write_mode: streaming_table
@@ -126,25 +133,7 @@ read_mode: stream
 source_schema: bronze
 
 columns:
-  # Rename Auto CDC system columns to __etl_ convention
-  - source_col: __START_AT
-    target_col: __etl_effective_from
-    data_type: TIMESTAMP
-    is_audit_col: true
-
-  - source_col: __END_AT
-    target_col: __etl_effective_to
-    data_type: TIMESTAMP
-    expression: "COALESCE(__END_AT, CAST(ev_end_date AS TIMESTAMP))"   # NULL → 9999-12-31 23:59:59
-    is_audit_col: true
-
-  - source_col:
-    target_col: __etl_is_current
-    data_type: BOOLEAN
-    expression: "__END_AT IS NULL"
-    is_audit_col: true
-
-  # Business columns — typecasting and cleansing
+  # Business columns only — typecasting and cleansing
   - source_col: raw_amount
     target_col: amount
     data_type: DECIMAL(10,2)
@@ -223,6 +212,7 @@ read_mode: snapshot
 | Column | Bronze Raw | Bronze CDC | Silver Processed | Silver SKEY | Silver CONS | Gold |
 |---|---|---|---|---|---|---|
 | `__etl_loaded_at` | yes | — | yes | yes | yes | — |
+| `__file_modification_time` | yes | — | — | — | — | — |
 | `__etl_effective_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
 | `__etl_effective_to` | — | _(Auto CDC — `__END_AT`)_ | yes (mapped) | — | SCD-2 | inherited |
 | `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
