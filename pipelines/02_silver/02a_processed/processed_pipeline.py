@@ -139,8 +139,7 @@ def register_processed_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Processed Tables
-for obj in ("customer", "material", "plant"):
-#load_objects()
+for obj in load_objects():
     register_processed_table(obj)
 
 

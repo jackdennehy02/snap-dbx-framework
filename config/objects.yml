@@ -168,7 +168,7 @@ objects:
         enabled: false
         object_name: tbl_b_skey_component_bom
       consolidation:
-        enabled: false
+        enabled: true
         object_name: tbl_c_cons_component_bom
     gold:
       dimensional:

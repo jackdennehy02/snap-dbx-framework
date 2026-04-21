@@ -6,13 +6,12 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 2
 import yaml
 
-CONFIG_ROOT = spark.conf.get(
-    "pipeline.config_root",
-    "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config",
-)
-CATALOG = spark.conf.get("pipeline.catalog", "snap_dbx")
+CONFIG_ROOT = "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config"
+
+CATALOG = "snap_dbx"
 
 with open(f"{CONFIG_ROOT}/objects.yml", "r") as f:
     registry = yaml.safe_load(f)
