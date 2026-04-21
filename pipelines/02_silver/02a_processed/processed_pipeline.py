@@ -45,7 +45,6 @@ def load_processed_config(object_key: str) -> dict:
 def _framework_transforms() -> list:
     """Standard framework columns — applied to every processed table."""
     return [
-        ("__etl_loaded_at",    F.col("__etl_loaded_at")),
         ("__etl_processed_at", F.current_timestamp()),
         ("__etl_active_from",  F.col("__START_AT")),
         ("__etl_active_to",
@@ -109,7 +108,7 @@ def register_processed_table(object_key: str):
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{catalog}.{schema}.{source_object}")
+        df = spark.readStream.table(f"snap_dbx.01_bronze.{source_object}")
 
         framework = _framework_transforms()
         user = _user_transforms(columns_config)
@@ -128,5 +127,8 @@ def register_processed_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Processed Tables
-for obj in load_objects():
+for obj in ("customer", "material", "plant"):
+#load_objects()
     register_processed_table(obj)
+
+

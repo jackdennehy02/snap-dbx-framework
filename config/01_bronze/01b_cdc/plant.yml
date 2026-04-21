@@ -13,10 +13,10 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_a_raw_customer
+source_object: tbl_a_raw_plant
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_b_cdc_customer
+object_name: tbl_b_cdc_plant
 enabled: true
 catalog: snap_dbx
 schema: 01_bronze
@@ -24,7 +24,7 @@ comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  - customer_key
+  - plant_key
 
 # ── CDC Control ──────────────────────────────────────
 sequence_by: __file_modification_time                              # required — column used to order changes (e.g. __file_modification_time)

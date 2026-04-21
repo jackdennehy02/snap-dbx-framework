@@ -115,7 +115,7 @@ objects:
   sales:
     source_type: cloud_storage
     primary_key_columns:
-      - sales_key
+      - order_id
     bronze:
       raw:
         enabled: true
@@ -150,7 +150,6 @@ objects:
     source_type: cloud_storage
     primary_key_columns:
       - component_key
-      - bom_key
     bronze:
       raw:
         enabled: true

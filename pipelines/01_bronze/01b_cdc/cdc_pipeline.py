@@ -90,5 +90,5 @@ def register_cdc_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,CDC Tables
-##for obj in load_objects():
-register_cdc_table("customer")
+for obj in load_objects():
+    register_cdc_table(obj)

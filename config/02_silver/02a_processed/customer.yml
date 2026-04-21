@@ -12,13 +12,13 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_cdc_customer
+source_object: tbl_b_cdc_customer
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_a_proc_customer
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
@@ -26,16 +26,19 @@ write_mode: streaming_table
 read_mode: stream
 
 # ── Keys ─────────────────────────────────────────────
-primary_key_columns:                     # business key column(s)
+primary_key_columns:                     # populated from objects.yml
+  - customer_key
+
+# ── Column Ordering ──────────────────────────────────
+leading_columns:                         # optional — columns to place first; everything else follows in source order
   # - col_a
+  # - col_b
 
 # ── Columns ──────────────────────────────────────────
+# Only define columns that need transformation. Everything else passes through automatically.
+# Framework audit columns (__START_AT, __END_AT, __etl_is_current etc.) are handled by the framework.
 columns:
 
-  # ── Business columns ─────────────────────────────────
-  # Add typecasting and cleansing below.
-  # Passthrough (no expression needed) if no transform required.
-  #
   # - source_col: raw_amount
   #   target_col: amount
   #   data_type: DECIMAL(10,2)
@@ -50,3 +53,49 @@ columns:
   #   target_col: event_date
   #   data_type: DATE
   #   expression: "TO_DATE(event_date, 'yyyy-MM-dd')"
+  
+    
+  - source_col: customer_text
+    target_col: name
+    data_type: STRING
+    expression: 
+  
+  - source_col: address_no
+    target_col: address
+    data_type: STRING
+    expression: 
+
+  - source_col: customer_type
+    target_col: type
+    data_type: STRING
+    expression: "UPPER(customer_type)"
+  
+  - source_col: postcode
+    target_col: postcode
+    data_type: STRING
+    expression: "UPPER(TRIM(postcode))"
+  
+  - source_col: city
+    target_col: city
+    data_type: STRING
+    expression: 
+  
+  - source_col: bank_account_no
+    target_col: bank_account_number_full
+    data_type: STRING
+    expression: 
+  
+  - source_col: bank_account_no
+    target_col: sort_code
+    data_type: STRING
+    expression: "SUBSTRING(bank_account_no, 1, 8)"
+
+  - source_col: bank_account_no
+    target_col: bank_account_number
+    data_type: BIGINT
+    expression: "SUBSTRING(bank_account_no, 10, 8)"
+
+
+
+
+

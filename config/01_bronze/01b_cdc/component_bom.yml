@@ -13,10 +13,10 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_a_raw_customer
+source_object: tbl_a_raw_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_b_cdc_customer
+object_name: tbl_b_cdc_component_bom
 enabled: true
 catalog: snap_dbx
 schema: 01_bronze
@@ -24,10 +24,10 @@ comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  - customer_key
+  - component_key
 
 # ── CDC Control ──────────────────────────────────────
-sequence_by: __file_modification_time                              # required — column used to order changes (e.g. __file_modification_time)
+sequence_by: __file_modification_time                             # required — column used to order changes (e.g. __file_modification_time)
 scd_type: 2                              # 1 = overwrite in place (no history)
                                          # 2 = full version history (default)
 

@@ -17,8 +17,8 @@ source_object: tbl_cdc_sales
 # ── Target ──────────────────────────────────────────
 object_name: tbl_a_proc_sales
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
@@ -26,16 +26,19 @@ write_mode: streaming_table
 read_mode: stream
 
 # ── Keys ─────────────────────────────────────────────
-primary_key_columns:                     # business key column(s)
+primary_key_columns:                     # populated from objects.yml
+  - order_id
+
+# ── Column Ordering ──────────────────────────────────
+leading_columns:                         # optional — columns to place first; everything else follows in source order
   # - col_a
+  # - col_b
 
 # ── Columns ──────────────────────────────────────────
+# Only define columns that need transformation. Everything else passes through automatically.
+# Framework audit columns (__START_AT, __END_AT, __etl_is_current etc.) are handled by the framework.
 columns:
 
-  # ── Business columns ─────────────────────────────────
-  # Add typecasting and cleansing below.
-  # Passthrough (no expression needed) if no transform required.
-  #
   # - source_col: raw_amount
   #   target_col: amount
   #   data_type: DECIMAL(10,2)

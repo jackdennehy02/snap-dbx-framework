@@ -12,41 +12,56 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_cdc_material
+source_object: tbl_b_cdc_material
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_a_proc_material
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
 write_mode: streaming_table
 read_mode: stream
 
-# ── Keys ─────────────────────────────────────────────
-primary_key_columns:                     # business key column(s)
-  # - col_a
 
-# ── Columns ──────────────────────────────────────────
+primary_key_columns:                     # populated from objects.yml
+  - material_key
+
+
+leading_columns:                         # optional — columns to place first; everything else follows in source order
+  # - col_a
+  # - col_b
+
 columns:
 
-  # ── Business columns ─────────────────────────────────
-  # Add typecasting and cleansing below.
-  # Passthrough (no expression needed) if no transform required.
-  #
-  # - source_col: raw_amount
-  #   target_col: amount
-  #   data_type: DECIMAL(10,2)
-  #   expression: "CAST(raw_amount AS DECIMAL(10,2))"
-  #
-  # - source_col: customer_text
-  #   target_col: customer_text
-  #   data_type: STRING
-  #   expression: "NULLIF(TRIM(UPPER(customer_text)), '')"
-  #
-  # - source_col: event_date
-  #   target_col: event_date
-  #   data_type: DATE
-  #   expression: "TO_DATE(event_date, 'yyyy-MM-dd')"
+  - source_col: product_type
+    target_col: type
+    data_type: STRING
+    expression: "UPPER(product_type)"
+
+  - source_col: height_cm
+    target_col: height_cm
+    data_type: FLOAT
+    expression:
+
+  - source_col: width_cm
+    target_col: width_cm
+    data_type: FLOAT
+    expression:
+
+  - source_col: sales_tier
+    target_col: sales_tier
+    data_type: STRING
+    expression: "UPPER(sales_tier)"
+
+  - source_col: price_tier
+    target_col: price_tier
+    data_type: STRING
+    expression: "UPPER(price_tier)"
+
+    
+
+    
+
