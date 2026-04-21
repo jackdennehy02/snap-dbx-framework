@@ -15,7 +15,7 @@ SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
 CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
 # Columns excluded from CDC target — framework audit cols and Auto Loader internals.
-_CDC_EXCLUDED_COLUMNS = ["__etl_loaded_at", "__file_modification_time", "_rescue_data"]
+_CDC_EXCLUDED_COLUMNS = ["__etl_loaded_at", "__file_modification_time", "_rescued_data"]
 
 # COMMAND ----------
 

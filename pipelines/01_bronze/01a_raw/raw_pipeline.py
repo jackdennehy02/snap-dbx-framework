@@ -39,23 +39,34 @@ def load_raw_config(object_key: str) -> dict:
 # Register new source types in _SOURCE_READERS below.
 
 def _cloud_storage_reader(conn: dict, streaming: bool):
-    options = {"cloudFiles.format": conn.get("cloud_storage_type", "")}
+    file_format = conn.get("cloud_storage_type", "")
+    path = conn.get("cloud_storage_path", "")
+
+    if not streaming:
+        # cloudFiles is streaming-only — batch reads use the underlying format directly
+        options = {}
+        if conn.get("header") is not None:
+            options["header"] = str(conn["header"]).lower()
+        if conn.get("delimiter"):
+            options["delimiter"] = conn["delimiter"]
+        if conn.get("null_value"):
+            options["nullValue"] = conn["null_value"]
+        return spark.read.format(file_format).options(**options).load(path)
+
+    options = {"cloudFiles.format": file_format}
     if conn.get("header") is not None:
         options["header"] = str(conn["header"]).lower()
     if conn.get("delimiter"):
         options["delimiter"] = conn["delimiter"]
     if conn.get("null_value"):
         options["nullValue"] = conn["null_value"]
-    if streaming:
-        # schemaLocation is only relevant for streaming (Auto Loader checkpoint)
-        if conn.get("cloud_schema_location"):
-            options["cloudFiles.schemaLocation"] = conn["cloud_schema_location"]
-        if conn.get("cloud_ingestion_mode"):
-            options["cloudFiles.useIncrementalListing"] = (
-                "false" if conn["cloud_ingestion_mode"] == "directory_listing" else "true"
-            )
-    reader = spark.readStream if streaming else spark.read
-    return reader.format("cloudFiles").options(**options).load(conn.get("cloud_storage_path", ""))
+    if conn.get("cloud_schema_location"):
+        options["cloudFiles.schemaLocation"] = conn["cloud_schema_location"]
+    if conn.get("cloud_ingestion_mode"):
+        options["cloudFiles.useIncrementalListing"] = (
+            "false" if conn["cloud_ingestion_mode"] == "directory_listing" else "true"
+        )
+    return spark.readStream.format("cloudFiles").options(**options).load(path)
 
 
 _SOURCE_READERS = {
