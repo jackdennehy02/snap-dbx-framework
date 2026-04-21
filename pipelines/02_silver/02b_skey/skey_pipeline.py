@@ -48,11 +48,6 @@ def _skey_expr(business_key_columns: list[str], scd_type: int) -> F.Column:
     return F.conv(F.substring(F.md5(concat), 1, 15), 16, 10).cast("bigint")
 
 
-def _date_int_expr(col_name: str) -> F.Column:
-    """Convert a date column to an integer key in YYYYMMDD format."""
-    return F.date_format(F.col(col_name), "yyyyMMdd").cast("int").alias(col_name)
-
-
 # ── Table registration ───────────────────────────────────────────────────────
 
 def register_skey_table(object_key: str):
@@ -66,7 +61,6 @@ def register_skey_table(object_key: str):
     scd_type = config.get("scd_type", 1)
     business_key_columns = config["business_key_columns"]
     skey_column = config.get("skey_column", f"{object_key}_skey")
-    date_columns = config.get("date_columns") or []
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
@@ -84,7 +78,6 @@ def register_skey_table(object_key: str):
         select_cols += [F.col(c) for c in business_key_columns]
         if scd_type == 2:
             select_cols.append(F.col("__etl_effective_from"))
-        select_cols += [_date_int_expr(c) for c in date_columns]
         select_cols.append(F.col("__etl_loaded_at"))
 
         return df.select(select_cols)

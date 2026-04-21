@@ -38,10 +38,3 @@ business_key_columns:                    # required — natural key(s) from sour
 
 skey_column: sales_skey
                                          # default: {object}_skey (e.g. customer_skey)
-
-# ── Date Columns ─────────────────────────────────────────────────────────────
-# Optional. Date columns to convert to integer keys (YYYYMMDD) for joining to a date dimension.
-# The column is replaced in-place — same name, integer type.
-# Leave blank or omit to pass date columns through unchanged.
-date_columns:
-  - invoice_date
