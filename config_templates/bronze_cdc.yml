@@ -28,7 +28,7 @@ keys:                                    # required — business key column(s); 
   # - col_b
 
 # ── CDC Control ──────────────────────────────────────
-sequence_by:                             # required — column used to order changes (e.g. __file_modification_time)
+sequence_by:                             # required — column used to order changes (e.g. __source_updated_at)
 scd_type: 2                              # 1 = overwrite in place (no history)
                                          # 2 = full version history (default)
 

@@ -129,7 +129,7 @@ def register_raw_table(object_key: str):
 
         return (
             df
-            .withColumn("__source_updated_time",
+            .withColumn("__source_updated_at",
                         F.col("_metadata.file_modification_time"))
             .withColumn("__etl_loaded_at", F.current_timestamp())
         )

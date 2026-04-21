@@ -16,7 +16,7 @@ SCHEMA = spark.conf.get("pipeline.schema", "02_silver")
 CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
 # Source columns consumed by the framework — excluded from passthrough.
-_FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT"}
+_FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT", "__etl_loaded_at", "__source_updated_at"}
 
 # Columns from bronze that should never appear in silver processed.
 _DROP_COLS = {"_rescued_data"}
@@ -46,20 +46,23 @@ def _framework_transforms(source_cols: list) -> list:
     """Standard framework columns — applied to every processed table.
 
     SCD-2 sources have __START_AT/__END_AT from Auto CDC.
-    SCD-1 sources have neither — active_from falls back to __source_updated_time.
+    SCD-1 sources have neither — effective_from falls back to __source_updated_at.
+    __etl_loaded_at and __source_updated_at are pinned to the end of every table.
     """
     is_scd2 = "__START_AT" in source_cols
-    active_from = F.col("__START_AT") if is_scd2 else F.col("__source_updated_time")
+    active_from = F.col("__START_AT") if is_scd2 else F.col("__source_updated_at")
     end_of_time = F.lit("9999-12-31 23:59:59").cast("timestamp")
     return [
-        ("__etl_processed_at", F.current_timestamp()),
-        ("__etl_active_from",  active_from),
-        ("__etl_active_to",
+        ("__etl_processed_at",   F.current_timestamp()),
+        ("__etl_effective_from", active_from),
+        ("__etl_effective_to",
             F.when(F.col("__END_AT").isNull(), end_of_time).otherwise(F.col("__END_AT"))
             if is_scd2 else end_of_time),
         ("__etl_is_current",
             (F.col("__END_AT").isNull()).cast("boolean")
             if is_scd2 else F.lit(True)),
+        ("__etl_loaded_at",      F.col("__etl_loaded_at")),
+        ("__source_updated_at",  F.col("__source_updated_at")),
     ]
 
 
