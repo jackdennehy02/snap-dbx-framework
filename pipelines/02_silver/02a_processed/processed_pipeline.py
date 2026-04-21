@@ -42,15 +42,24 @@ def load_processed_config(object_key: str) -> dict:
 
 # ── Column builders ─────────────────────────────────────────────────────────
 
-def _framework_transforms() -> list:
-    """Standard framework columns — applied to every processed table."""
+def _framework_transforms(source_cols: list) -> list:
+    """Standard framework columns — applied to every processed table.
+
+    SCD-2 sources have __START_AT/__END_AT from Auto CDC.
+    SCD-1 sources have neither — active_from falls back to __etl_loaded_at.
+    """
+    is_scd2 = "__START_AT" in source_cols
+    active_from = F.col("__START_AT") if is_scd2 else F.col("__etl_loaded_at")
+    end_of_time = F.lit("9999-12-31 23:59:59").cast("timestamp")
     return [
         ("__etl_processed_at", F.current_timestamp()),
-        ("__etl_active_from",  F.col("__START_AT")),
+        ("__etl_active_from",  active_from),
         ("__etl_active_to",
-            F.when(F.col("__END_AT").isNull(), F.lit("9999-12-31 23:59:59").cast("timestamp"))
-             .otherwise(F.col("__END_AT"))),
-        ("__etl_is_current",   (F.col("__END_AT").isNull()).cast("boolean")),
+            F.when(F.col("__END_AT").isNull(), end_of_time).otherwise(F.col("__END_AT"))
+            if is_scd2 else end_of_time),
+        ("__etl_is_current",
+            (F.col("__END_AT").isNull()).cast("boolean")
+            if is_scd2 else F.lit(True)),
     ]
 
 
@@ -110,7 +119,7 @@ def register_processed_table(object_key: str):
     def _load():
         df = spark.readStream.table(f"snap_dbx.01_bronze.{source_object}")
 
-        framework = _framework_transforms()
+        framework = _framework_transforms(df.columns)
         user = _user_transforms(columns_config)
         passthrough = _passthrough_cols(df.columns, skip)
 

@@ -22,8 +22,8 @@ schema:                                  # override hop default
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table
-read_mode: stream
+write_mode: streaming_table              # streaming_table = incremental DLT stream | materialized_view = recomputed on each refresh
+read_mode: stream                        # stream = read from CDC stream (standard) | snapshot = full table scan (batch/reference)
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml

@@ -53,11 +53,6 @@ columns:
     data_type: BOOLEAN
     expression:
 
-  - source_col: latitude
-    target_col: latitude
-    data_type: FLOAT
-    expression:
-
   - source_col: established_year
     target_col: established_year
     data_type: INT
