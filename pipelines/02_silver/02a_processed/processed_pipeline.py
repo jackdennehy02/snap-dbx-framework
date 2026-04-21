@@ -53,6 +53,8 @@ def _framework_transforms(source_cols: list) -> list:
     active_from = F.col("__START_AT") if is_scd2 else F.col("__source_updated_at")
     end_of_time = F.lit("9999-12-31 23:59:59").cast("timestamp")
     return [
+        ("__source_updated_at",  F.col("__source_updated_at")),
+        ("__etl_loaded_at",      F.col("__etl_loaded_at")),
         ("__etl_processed_at",   F.current_timestamp()),
         ("__etl_effective_from", active_from),
         ("__etl_effective_to",
@@ -61,8 +63,6 @@ def _framework_transforms(source_cols: list) -> list:
         ("__etl_is_current",
             (F.col("__END_AT").isNull()).cast("boolean")
             if is_scd2 else F.lit(True)),
-        ("__etl_loaded_at",      F.col("__etl_loaded_at")),
-        ("__source_updated_at",  F.col("__source_updated_at")),
     ]
 
 
