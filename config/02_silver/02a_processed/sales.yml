@@ -31,15 +31,15 @@ primary_key_columns:                     # populated from objects.yml
 
 # ── Column Ordering ──────────────────────────────────
 leading_columns:                         # optional — columns to place first; everything else follows in source order
-  # - col_a
-  # - col_b
+  - invoice_date
+  - order_id
 
 columns:
   - source_col: invoice_date
     target_col: invoice_date
     data_type: DATE
-    expression:
-
+    expression: "TO_DATE(invoice_date, 'dd/MM/yyyy')"
+ 
   - source_col: sales_quantity
     target_col: quantity
     data_type: INT

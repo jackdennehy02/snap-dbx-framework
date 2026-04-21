@@ -17,10 +17,10 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_proc_plant
+source_object: tbl_proc_sales
 
 # ── Target ──────────────────────────────────────────
-object_name: tbl_b_skey_plant
+object_name: tbl_b_skey_sales
 enabled: true
 catalog: snap_dbx
 schema: 02_silver
@@ -34,7 +34,7 @@ read_mode: stream
 scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version
 
 business_key_columns:                    # required — natural key(s) from source
-  - plant_key
+  - order_id
 
-skey_column: plant_skey
+skey_column: sales_skey
                                          # default: {object}_skey (e.g. customer_skey)

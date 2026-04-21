@@ -131,7 +131,8 @@ objects:
         metadata_driven: true
         object_name: tbl_a_proc_sales
       skey:
-        enabled: false                   # facts don't produce skey tables
+        enabled: true
+        metadata_driven: true             
         object_name: tbl_b_skey_sales
       consolidation:
         enabled: true
@@ -165,7 +166,8 @@ objects:
         metadata_driven: true
         object_name: tbl_a_proc_component_bom
       skey:
-        enabled: false
+        enabled: true
+        metadata_driven: true
         object_name: tbl_b_skey_component_bom
       consolidation:
         enabled: true

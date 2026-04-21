@@ -22,8 +22,8 @@ source_object: tbl_proc_customer
 # ── Target ──────────────────────────────────────────
 object_name: tbl_b_skey_customer
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
@@ -34,8 +34,7 @@ read_mode: stream
 scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version
 
 business_key_columns:                    # required — natural key(s) from source
-  # - col_a
-  # - col_b
+  - customer_key
 
 skey_column: customer_skey
                                          # default: {object}_skey (e.g. customer_skey)
