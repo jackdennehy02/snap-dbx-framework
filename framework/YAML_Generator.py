@@ -261,18 +261,20 @@ def populate_cdc_template(template, object_key, hop_config, top_level):
     object_name = hop_config.get("object_name") or f"tbl_cdc_{object_key}"
     source_object = _resolve_source_object(object_key, "bronze", "cdc", hop_config)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
+    track_changes = hop_config.get("track_changes") if hop_config.get("track_changes") is not None else True
 
     return _substitute_fields(template, {
         "source_object": source_object,
         "object_name": object_name,
         "enabled": str(enabled).lower(),
+        "track_changes": str(track_changes).lower(),
         "catalog": hop_config.get("catalog") or "",
         "schema": hop_config.get("schema") or "",
     })
 
 
 def populate_processed_template(template, object_key, hop_config, top_level):
-    """Silver processed — typecasting and audit column renames."""
+    """Silver processed — typecasting and basic cleansing."""
     object_name = hop_config.get("object_name") or f"tbl_proc_{object_key}"
     source_object = _resolve_source_object(object_key, "silver", "processed", hop_config)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True

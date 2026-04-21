@@ -7,8 +7,8 @@
 # No joins. No business logic. No skey resolution.
 # If it needs a join, it belongs in consolidation.
 #
-# The audit column renames below are standard for ALL
-# processed objects — do not remove them.
+# Audit column renames (__START_AT → __etl_effective_from, etc.) are applied
+# automatically by the framework — do not add them here.
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
@@ -31,36 +31,6 @@ primary_key_columns:                     # business key column(s)
 
 # ── Columns ──────────────────────────────────────────
 columns:
-
-  # ── Audit column renames (standard — do not remove) ──
-  # Rename Databricks Auto CDC system columns to __etl_ convention.
-
-  - source_col: __START_AT
-    target_col: __etl_effective_from
-    data_type: TIMESTAMP
-    is_nullable: false
-    is_audit_col: true
-
-  - source_col: __END_AT
-    target_col: __etl_effective_to
-    data_type: TIMESTAMP
-    expression: "COALESCE(__END_AT, CAST(ev_end_date AS TIMESTAMP))"
-    is_nullable: false
-    is_audit_col: true
-
-  - source_col:
-    target_col: __etl_is_current
-    data_type: BOOLEAN
-    expression: "__END_AT IS NULL"
-    is_nullable: false
-    is_audit_col: true
-
-  - source_col:
-    target_col: __etl_loaded_at
-    data_type: TIMESTAMP
-    expression: "current_timestamp()"
-    is_nullable: false
-    is_audit_col: true
 
   # ── Business columns ─────────────────────────────────
   # Add typecasting and cleansing below.

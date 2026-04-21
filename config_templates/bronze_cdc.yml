@@ -22,11 +22,17 @@ catalog:                                 # override hop default
 schema:                                  # override hop default
 comment:                                 # Unity Catalog table COMMENT
 
-# ── Auto CDC Control ─────────────────────────────────
-sequence_by:                             # required — column used to order changes (e.g. __etl_loaded_at)
+# ── CDC Behaviour ────────────────────────────────────
+track_changes: true                      # true = APPLY CHANGES INTO (SCD-1 or SCD-2)
+                                         # false = latest-per-key overwrite (no history, no __START_AT/__END_AT)
+
+# ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s)
-  # - col_a
-  # - col_b
+  # - col_a                              # used for APPLY CHANGES INTO when track_changes: true
+  # - col_b                              # used for latest-per-key dedup when track_changes: false
+
+# ── Auto CDC Control (track_changes: true only) ──────
+sequence_by:                             # required — column used to order changes (e.g. __etl_loaded_at)
 scd_type: 2                              # 1 = overwrite in place | 2 = full version history (default)
 
 apply_as_deletes:                        # optional — SQL condition to treat a row as a delete

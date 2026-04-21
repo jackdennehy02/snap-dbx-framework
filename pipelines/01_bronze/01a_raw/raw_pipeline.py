@@ -13,7 +13,18 @@ import yaml
 # ── Fallbacks for pipeline publishing ──
 CATALOG = spark.conf.get("pipeline.catalog", "snap_dbx")
 SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
+CONFIG_ROOT = spark.conf.get("pipeline.config_root")
 
+
+
+def load_objects() -> list[str]:
+    """Return object keys that have bronze raw enabled in objects.yml."""
+    with open(f"{CONFIG_ROOT}/objects.yml", "r") as f:
+        registry = yaml.safe_load(f)
+    return [
+        key for key, obj in registry["objects"].items()
+        if obj.get("bronze", {}).get("raw", {}).get("enabled", False)
+    ]
 
 
 def load_raw_config(object_key: str) -> dict:
@@ -23,59 +34,94 @@ def load_raw_config(object_key: str) -> dict:
         return yaml.safe_load(f)
 
 
-def register_cloud_files_raw_table(object_key: str):
-    """Load YAML config and register a dp.table for a raw cloud_files source."""
-    config = load_raw_config(object_key)
-    conn = config.get("connection", {})
-    ingestion_mode = config.get("ingestion_mode",
-                                spark.conf.get("pipeline.ingestion_mode", "snapshot"))
+# ── Source reader builders ──────────────────────────────────────────────────
+# Each accepts (conn: dict, streaming: bool) and returns a DataFrame.
+# Register new source types in _SOURCE_READERS below.
 
-    # ── Target ──────────────────────────────────────
-    table_name = config["object_name"]
-    catalog = config.get("catalog", CATALOG)
-    schema = config.get("schema", SCHEMA)
-    comment = config.get("comment")
-    data_items = config.get("data_items")
-
-    # ── cloudFiles options ──────────────────────────
-    options = {
-        "cloudFiles.format": conn.get("cloud_storage_type", ""),
-    }
+def _cloud_storage_reader(conn: dict, streaming: bool):
+    options = {"cloudFiles.format": conn.get("cloud_storage_type", "")}
     if conn.get("header") is not None:
         options["header"] = str(conn["header"]).lower()
     if conn.get("delimiter"):
         options["delimiter"] = conn["delimiter"]
     if conn.get("null_value"):
         options["nullValue"] = conn["null_value"]
-    if conn.get("cloud_schema_location"):
-        options["cloudFiles.schemaLocation"] = conn["cloud_schema_location"]
-    if conn.get("cloud_ingestion_mode"):
-        options["cloudFiles.useIncrementalListing"] = (
-            "false" if conn["cloud_ingestion_mode"] == "directory_listing" else "true"
-        )
+    if streaming:
+        # schemaLocation is only relevant for streaming (Auto Loader checkpoint)
+        if conn.get("cloud_schema_location"):
+            options["cloudFiles.schemaLocation"] = conn["cloud_schema_location"]
+        if conn.get("cloud_ingestion_mode"):
+            options["cloudFiles.useIncrementalListing"] = (
+                "false" if conn["cloud_ingestion_mode"] == "directory_listing" else "true"
+            )
+    reader = spark.readStream if streaming else spark.read
+    return reader.format("cloudFiles").options(**options).load(conn.get("cloud_storage_path", ""))
 
-    # ── Register the table ──────────────────────────
-    @dp.table(
-        name=f"{catalog}.{schema}.{table_name}",
-        comment=comment,
+
+_SOURCE_READERS = {
+    "cloud_storage": _cloud_storage_reader,
+    # "jdbc": _jdbc_reader,
+    # "kafka": _kafka_reader,
+}
+
+
+# ── Validation ──────────────────────────────────────────────────────────────
+
+_INVALID_COMBOS = {
+    # Raw is append-only — upsert belongs in the CDC layer.
+    ("streaming", "upsert"): "upsert is not valid in the raw layer; raw is append-only.",
+    ("snapshot", "upsert"): "upsert is not valid in the raw layer; raw is append-only.",
+    # Streaming tables don't support overwrite — DLT appends continuously.
+    ("streaming", "overwrite"): "overwrite is incompatible with streaming ingestion.",
+}
+
+
+def _validate_raw_config(object_key: str, ingestion_mode: str, merge_strategy: str):
+    reason = _INVALID_COMBOS.get((ingestion_mode, merge_strategy))
+    if reason:
+        raise ValueError(f"{object_key}: {reason}")
+
+
+# ── Table registration ──────────────────────────────────────────────────────
+
+def register_raw_table(object_key: str):
+    """Register a dp.table for a raw source object based on its YAML config."""
+    config = load_raw_config(object_key)
+    source_type = config.get("source_type", "cloud_storage")
+    conn = config.get("connection", {})
+    ingestion_mode = config.get(
+        "ingestion_mode",
+        spark.conf.get("pipeline.ingestion_mode", "snapshot"),
     )
+    merge_strategy = config.get("merge_strategy", "append")
+
+    table_name = config["object_name"]
+    catalog = config.get("catalog", CATALOG)
+    schema = config.get("schema", SCHEMA)
+    comment = config.get("comment")
+    data_items = config.get("data_items")
+
+    _validate_raw_config(object_key, ingestion_mode, merge_strategy)
+
+    reader_fn = _SOURCE_READERS.get(source_type)
+    if reader_fn is None:
+        raise ValueError(f"{object_key}: unknown source_type '{source_type}'")
+
+    streaming = ingestion_mode == "streaming"
+
+    @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=comment)
     def _load():
-        reader = spark.readStream if ingestion_mode == "streaming" else spark.read
-        df = reader.format("cloudFiles").options(**options).load(
-            conn.get("cloud_storage_path", "")
-        )
+        df = reader_fn(conn, streaming)
 
         if data_items:
             df = df.selectExpr(*data_items)
 
-        df = (
+        return (
             df
             .withColumn("_metadata_file_modification_time",
-                         F.col("_metadata.file_modification_time"))
+                        F.col("_metadata.file_modification_time"))
             .withColumn("_etl_loaded_at", F.current_timestamp())
         )
-
-        return df
 
 
 # COMMAND ----------
@@ -86,5 +132,5 @@ def register_cloud_files_raw_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Raw Tables
-for obj in ["customer", "material", "plant", "sales", "component_bom" ]:
-    register_cloud_files_raw_table(obj)
+for obj in load_objects():
+    register_raw_table(obj)
