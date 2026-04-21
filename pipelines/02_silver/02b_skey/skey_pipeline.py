@@ -78,7 +78,6 @@ def register_skey_table(object_key: str):
         select_cols += [F.col(c) for c in business_key_columns]
         if scd_type == 2:
             select_cols.append(F.col("__etl_effective_from"))
-        select_cols.append(F.col("__etl_loaded_at"))
 
         return df.select(select_cols)
 
