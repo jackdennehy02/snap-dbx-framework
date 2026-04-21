@@ -45,25 +45,29 @@ def load_processed_config(object_key: str) -> dict:
 def _framework_transforms(source_cols: list) -> list:
     """Standard framework columns — applied to every processed table.
 
-    SCD-2 sources have __START_AT/__END_AT from Auto CDC.
-    SCD-1 sources have neither — effective_from falls back to __source_updated_at.
-    __etl_loaded_at and __source_updated_at are pinned to the end of every table.
+    SCD-2 sources have __START_AT/__END_AT from Auto CDC; effective date columns
+    are derived from these and included in the output.
+    SCD-1 sources have no versioning — effective date columns are omitted entirely.
     """
     is_scd2 = "__START_AT" in source_cols
-    active_from = F.col("__START_AT") if is_scd2 else F.col("__source_updated_at")
     end_of_time = F.lit("9999-12-31 23:59:59").cast("timestamp")
-    return [
-        ("__source_updated_at",  F.col("__source_updated_at")),
-        ("__etl_loaded_at",      F.col("__etl_loaded_at")),
-        ("__etl_processed_at",   F.current_timestamp()),
-        ("__etl_effective_from", active_from),
-        ("__etl_effective_to",
-            F.when(F.col("__END_AT").isNull(), end_of_time).otherwise(F.col("__END_AT"))
-            if is_scd2 else end_of_time),
-        ("__etl_is_current",
-            (F.col("__END_AT").isNull()).cast("boolean")
-            if is_scd2 else F.lit(True)),
+
+    cols = [
+        ("__source_updated_at", F.col("__source_updated_at")),
+        ("__etl_loaded_at",     F.col("__etl_loaded_at")),
+        ("__etl_processed_at",  F.current_timestamp()),
     ]
+
+    if is_scd2:
+        cols += [
+            ("__etl_effective_from", F.col("__START_AT")),
+            ("__etl_effective_to",
+                F.when(F.col("__END_AT").isNull(), end_of_time).otherwise(F.col("__END_AT"))),
+            ("__etl_is_current",
+                (F.col("__END_AT").isNull()).cast("boolean")),
+        ]
+
+    return cols
 
 
 def _user_transforms(columns_config: list) -> list:
