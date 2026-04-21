@@ -8,89 +8,94 @@ A YAML-driven ETL framework for Databricks, built as a Databricks-native equival
 Source Files (CSV / cloud storage)
      │
      ▼
-[ Bronze — Raw ]        tbl_raw_{object}    Append-only raw ingest. Full source history retained.
+[ Bronze — Raw ]        raw_{object}         Append-only raw ingest. Full source history retained.
      │  Databricks Auto CDC (APPLY CHANGES INTO)
      ▼
-[ Bronze — CDC ]        tbl_cdc_{object}    SCD-2 history maintained natively by Databricks.
+[ Bronze — CDC ]        cdc_{object}         SCD-2 history maintained natively by Databricks.
      │
      ▼
-[ Silver — Processed ]  tbl_proc_{object}   Renames Auto CDC columns to __etl_ convention. Typecasting and cleansing.
+[ Silver — Processed ]  processed_{object}   Renames Auto CDC columns to __etl_ convention. Typecasting and cleansing.
      │
      ▼
-[ Silver — SKEY ]       tbl_skey_{object}   Surrogate key mapping. Business key → integer skey.
+[ Silver — SKEY ]       skey_{object}        Surrogate key mapping. Business key → integer skey.
      │
      ▼
-[ Silver — CONS ]       tbl_cons_{object}   Consolidation. Joins, skey resolution, business rules.
+[ Gold — CONS ]         cons_{object}        Consolidation. Joins processed + SKEY, business rules.
      │
      ▼
-[ Gold ]                tbl_dim_{object}    Dimensional model. SCD-2 dimensions and fact tables.
-                        tbl_mart_{object}   Aggregations and calculations for reporting.
+[ Gold — Dimensional ]  dim_{object}         Dimensional model. SCD-2 dimensions and fact tables.
+                        fact_{object}
 ```
 
 | Layer | SETL Equivalent | Description |
 |---|---|---|
 | Bronze Raw | STG | Raw ingest from source. Append-only — full ingestion history retained across loads. |
-| Bronze CDC | V_STG → PSH | Databricks Auto CDC (`APPLY CHANGES INTO`) applied to raw. Maintains SCD-2 history natively. |
+| Bronze CDC | V_STG → PSH | Databricks Auto CDC (`APPLY CHANGES INTO`) applied to `raw_`. Maintains SCD-2 history natively. |
 | Silver Processed | _(none)_ | Renames Auto CDC system columns to `__etl_` convention. Typecasting and basic cleansing. |
 | Silver SKEY | SKEY | Surrogate key mapping. Insert-only. New skey per effective version for SCD-2 objects. |
-| Silver CONS | V_CONS | Consolidation and transformation. Joins, skey resolution, business rule application. |
+| Gold CONS | V_CONS | Consolidation and transformation. Joins processed + SKEY, skey resolution, business rule application. |
 | Gold Dimensional | DIM / FACT | Final dimensional model. SCD-2 dimensions and fact tables. |
-| Gold Data Mart | Data Mart | Aggregation views on top of the dimensional layer. |
 
 ## Project Structure
 
 ```
 snap-dbx-framework/
-  config_template/
-    objects.yml          # Master object registry template — defines all objects and their layers
-    loading.yml          # Bronze raw ingestion config template
-    hop.yml              # Silver / gold hop config template
   config/
-    objects.yml          # Populated object registry — drives config generation
-    loading/             # Generated per-object bronze raw configs
-    bronze/
-      cdc/               # Generated per-object bronze CDC configs
-    silver/
-      processed/         # Generated per-object processed configs
-      skey/              # Generated per-object SKEY configs
-      consolidation/     # Generated per-object CONS configs
-    gold/
-      dimensional/       # Generated per-object dimension/fact configs
-      data_mart/         # Generated per-object data mart configs
-  framework/             # Pipeline framework code (in development)
-  notebooks/             # Databricks notebooks (in development)
-  tests/                 # Test suite (in development)
+    framework.yml          # Centralised catalogs, schemas, and environment variables
+    objects.yml            # Master object registry — drives config file generation
+    01_bronze/
+      raw/                 # Generated per-object bronze raw configs
+      cdc/                 # Generated per-object bronze CDC configs
+    02_silver/
+      processed/           # Generated per-object processed configs
+      skey/                # Generated per-object SKEY configs
+    03_gold/
+      consolidation/       # Generated per-object CONS configs
+      dimensional/         # Generated per-object dimension/fact configs
+  config_templates/        # Template files used by the generator
+  framework/
+    YAML_Generator.py      # Generates per-layer config files from objects.yml
+  pipelines/
+    01_bronze/
+      raw/                 # Bronze raw pipeline
+      cdc/                 # Bronze CDC pipeline
+    02_silver/
+      processed/           # Silver processed pipeline
+      skey/                # Silver SKEY pipeline
+    03_gold/               # Gold pipelines (in development)
+  architecture.md          # Full architecture reference
 ```
 
 ## Config
 
-**`config/objects.yml`** is the master registry. It defines every object, which layers it flows through, the table name at each layer, and whether it's metadata-driven. A generator reads this to produce all per-layer config files.
+**`config/framework.yml`** is the single source of truth for catalog names, schema names, and pipeline environment variables. All pipelines load from it at runtime — nothing is hardcoded in pipeline code.
 
-**Per-layer configs** are generated from `config_template/`. Only fields that differ from `hop_defaults.yml` need to be set — everything else is inherited.
+**`config/objects.yml`** is the master object registry. It defines every object, which layers it flows through, and whether it's metadata-driven. The generator reads it to produce all per-layer config files.
 
 See `architecture.md` for the full config schema and field reference.
 
 ## Naming Conventions
 
-All names use `lower_snake_case`.
+All names use `lower_snake_case`. No `tbl_` prefix.
 
-| Layer | Table Prefix | View Prefix | Example |
-|---|---|---|---|
-| Bronze Raw | `tbl_raw_` | `vw_raw_` | `tbl_raw_customer` |
-| Bronze CDC | `tbl_cdc_` | `vw_cdc_` | `tbl_cdc_customer` |
-| Silver Processed | `tbl_proc_` | — | `tbl_proc_customer` |
-| Silver SKEY | `tbl_skey_` | — | `tbl_skey_customer` |
-| Silver CONS | `tbl_cons_` | — | `tbl_cons_customer` |
-| Gold Dimensional | `tbl_dim_` | — | `tbl_dim_customer` |
-| Gold Data Mart | `tbl_mart_` | — | `tbl_mart_sales` |
+| Layer | Prefix | Example |
+|---|---|---|
+| Bronze Raw | `raw_` | `raw_customer` |
+| Bronze CDC | `cdc_` | `cdc_customer` |
+| Silver Processed | `processed_` | `processed_customer` |
+| Silver SKEY | `skey_` | `skey_customer` |
+| Gold CONS | `cons_` | `cons_customer` |
+| Gold Dimensional | `dim_` / `fact_` | `dim_customer`, `fact_sales` |
 
 ## Audit Columns
 
-| Column | Introduced |
-|---|---|
-| `__etl_loaded_at` | Bronze Raw |
-| `__etl_effective_from` | Silver Processed (renamed from Databricks `__START_AT`) |
-| `__etl_effective_to` | Silver Processed (renamed from Databricks `__END_AT`) |
-| `__etl_is_current` | Silver Processed (derived from `__END_AT IS NULL`) |
+| Column | Introduced | Notes |
+|---|---|---|
+| `__etl_loaded_at` | Bronze Raw | When the record was loaded |
+| `__source_updated_at` | Bronze Raw | Source file modification time |
+| `__etl_processed_at` | Silver Processed | When the record passed through processed |
+| `__etl_effective_from` | Silver Processed | Renamed from Databricks `__START_AT` (SCD-2 only) |
+| `__etl_effective_to` | Silver Processed | Renamed from `__END_AT`; `NULL` replaced with `ev_end_date` (SCD-2 only) |
+| `__etl_is_current` | Silver Processed | Derived from `__END_AT IS NULL` (SCD-2 only) |
 
-`__etl_record_indicator` is not used — Auto CDC handles change detection internally.
+SCD-1 objects have no versioning — effective date columns are omitted entirely rather than populated with placeholder values.
