@@ -26,16 +26,19 @@ write_mode: streaming_table
 read_mode: stream
 
 # ── Keys ─────────────────────────────────────────────
-primary_key_columns:                     # business key column(s)
+primary_key_columns:                     # populated from objects.yml
   # - col_a
 
+# ── Column Ordering ──────────────────────────────────
+leading_columns:                         # optional — columns to place first; everything else follows in source order
+  # - col_a
+  # - col_b
+
 # ── Columns ──────────────────────────────────────────
+# Only define columns that need transformation. Everything else passes through automatically.
+# Framework audit columns (__START_AT, __END_AT, __etl_is_current etc.) are handled by the framework.
 columns:
 
-  # ── Business columns ─────────────────────────────────
-  # Add typecasting and cleansing below.
-  # Passthrough (no expression needed) if no transform required.
-  #
   # - source_col: raw_amount
   #   target_col: amount
   #   data_type: DECIMAL(10,2)

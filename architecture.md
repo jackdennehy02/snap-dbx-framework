@@ -124,13 +124,26 @@ Processed has two responsibilities:
 
 It reads from the bronze CDC stream. No joins, no business logic, no surrogate key resolution — if it needs a join it belongs in CONS.
 
-The framework automatically applies the Auto CDC column renames (`__START_AT` → `__etl_effective_from`, `__END_AT` → `__etl_effective_to`, `__etl_is_current`) — these do not appear in the per-object YAML config.
+The framework automatically applies these columns — they do not appear in the per-object YAML config:
+
+| Framework Column | Source |
+|---|---|
+| `__etl_loaded_at` | passed through from bronze |
+| `__etl_processed_at` | `current_timestamp()` — when the record was processed in silver |
+| `__etl_active_from` | renamed from `__START_AT` |
+| `__etl_active_to` | renamed from `__END_AT`; `NULL` → `9999-12-31 23:59:59` |
+| `__etl_is_current` | derived: `__END_AT IS NULL` |
+
+Only business columns (typecasting, cleansing) go in the YAML config. Everything else passes through automatically.
 
 ```yaml
 object_name: tbl_proc_{object}
 write_mode: streaming_table
 read_mode: stream
 source_schema: bronze
+
+leading_columns:           # optional — columns to place first
+  # - col_a
 
 columns:
   # Business columns only — typecasting and cleansing
@@ -149,7 +162,7 @@ columns:
 
 ## Silver SKEY (`hop.yml`)
 
-SKEY maps each business key to an integer surrogate key. Insert-only — once a key is assigned it never changes. For SCD-2 dimensions, a new skey is generated per effective version (keyed on business key + `__etl_effective_from`).
+SKEY maps each business key to an integer surrogate key. Insert-only — once a key is assigned it never changes. For SCD-2 dimensions, a new skey is generated per effective version (keyed on business key + `__etl_active_from`).
 
 ```yaml
 object_name: tbl_skey_{object}
@@ -179,8 +192,8 @@ custom_sql: >
     proc.{business_key},
     sk.{object}_skey,
     proc.{col},
-    proc.__etl_effective_from,
-    proc.__etl_effective_to,
+    proc.__etl_active_from,
+    proc.__etl_active_to,
     proc.__etl_record_indicator
   FROM STREAM(silver.tbl_proc_{object}) proc
   INNER JOIN silver.tbl_skey_{object} sk ON proc.{business_key} = sk.{business_key}
@@ -190,7 +203,7 @@ custom_sql: >
 
 ## Gold (`hop.yml`)
 
-Gold defaults to `materialized_view` with `read_mode: snapshot`. Dimensions carry `__etl_effective_from/to` from silver; facts carry surrogate key references to each dimension.
+Gold defaults to `materialized_view` with `read_mode: snapshot`. Dimensions carry `__etl_active_from/to` from silver; facts carry surrogate key references to each dimension.
 
 ```yaml
 # Dimension
@@ -211,15 +224,15 @@ read_mode: snapshot
 
 | Column | Bronze Raw | Bronze CDC | Silver Processed | Silver SKEY | Silver CONS | Gold |
 |---|---|---|---|---|---|---|
-| `__etl_loaded_at` | yes | — | yes | yes | yes | — |
+| `__etl_loaded_at` | yes | — | yes (pass-through) | yes | yes | — |
 | `__file_modification_time` | yes | — | — | — | — | — |
-| `__etl_effective_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
-| `__etl_effective_to` | — | _(Auto CDC — `__END_AT`)_ | yes (mapped) | — | SCD-2 | inherited |
+| `__etl_processed_at` | — | — | yes (framework) | — | — | — |
+| `__etl_active_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
+| `__etl_active_to` | — | _(Auto CDC — `__END_AT`)_ | yes (NULL → 9999-12-31) | — | SCD-2 | inherited |
 | `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
 
-> `__etl_record_indicator` is not used — Auto CDC handles change detection internally.
->
-> `__etl_effective_to` is never `NULL`. In Processed, `__END_AT IS NULL` (current record) is replaced with `ev_end_date` (`9999-12-31 23:59:59`). `__etl_is_current` is then derived as `__etl_effective_to = ev_end_date`.
+> `__etl_active_to` is never `NULL` from silver onwards — `NULL` (current record) is replaced with `9999-12-31 23:59:59` by the framework.
+> `__file_modification_time` is dropped at silver processed — it's a bronze ingest concern only.
 
 ---
 
