@@ -95,7 +95,7 @@ REQUIRES_EXPLICIT_OBJECT_NAME = {
 SOURCE_OBJECT_DEFAULTS = {
     ("bronze", "cdc"):              "tbl_a_raw_{object}",
     ("silver", "processed"):        "tbl_b_cdc_{object}",
-    ("silver", "skey"):             "tbl_proc_{object}",
+    ("silver", "skey"):             "tbl_a_proc_{object}",
 }
 
 # Default catalog and schema per layer — overridden by hop_config or objects.yml if set
