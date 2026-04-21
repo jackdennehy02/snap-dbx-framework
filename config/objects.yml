@@ -161,7 +161,8 @@ objects:
         object_name: tbl_b_cdc_component_bom
     silver:
       processed:
-        enabled: false
+        enabled: true
+        metadata_driven: true
         object_name: tbl_a_proc_component_bom
       skey:
         enabled: false

@@ -81,7 +81,7 @@ The framework appends two audit columns at ingest time:
 | Column | Source |
 |---|---|
 | `__etl_loaded_at` | `current_timestamp()` — when the record was loaded |
-| `__file_modification_time` | `_metadata.file_modification_time` — when the source file was last modified |
+| `__source_updated_time` | `_metadata.file_modification_time` — when the source file was last modified; standardised name across all source types |
 
 ---
 
@@ -224,15 +224,15 @@ read_mode: snapshot
 
 | Column | Bronze Raw | Bronze CDC | Silver Processed | Silver SKEY | Silver CONS | Gold |
 |---|---|---|---|---|---|---|
-| `__etl_loaded_at` | yes | — | yes (pass-through) | yes | yes | — |
-| `__file_modification_time` | yes | — | — | — | — | — |
+| `__etl_loaded_at` | yes | yes (pass-through) | yes (pass-through) | yes | yes | — |
+| `__source_updated_time` | yes | yes (pass-through) | yes (pass-through) | — | — | — |
 | `__etl_processed_at` | — | — | yes (framework) | — | — | — |
-| `__etl_active_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed) | SCD-2 | SCD-2 | inherited |
+| `__etl_active_from` | — | _(Auto CDC — `__START_AT`)_ | yes (renamed; SCD-1 → `__source_updated_time`) | SCD-2 | SCD-2 | inherited |
 | `__etl_active_to` | — | _(Auto CDC — `__END_AT`)_ | yes (NULL → 9999-12-31) | — | SCD-2 | inherited |
 | `__etl_is_current` | — | — | yes (derived) | — | SCD-2 | inherited |
 
 > `__etl_active_to` is never `NULL` from silver onwards — `NULL` (current record) is replaced with `9999-12-31 23:59:59` by the framework.
-> `__file_modification_time` is dropped at silver processed — it's a bronze ingest concern only.
+> `__source_updated_time` replaces `__file_modification_time` — standardised name across all source types.
 
 ---
 

@@ -94,7 +94,7 @@ REQUIRES_EXPLICIT_OBJECT_NAME = {
 # Default source object for each hop (what it reads from upstream)
 SOURCE_OBJECT_DEFAULTS = {
     ("bronze", "cdc"):              "tbl_a_raw_{object}",
-    ("silver", "processed"):        "tbl_cdc_{object}",
+    ("silver", "processed"):        "tbl_b_cdc_{object}",
     ("silver", "skey"):             "tbl_proc_{object}",
 }
 
