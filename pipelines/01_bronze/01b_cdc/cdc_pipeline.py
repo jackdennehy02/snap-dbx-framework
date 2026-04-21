@@ -75,8 +75,17 @@ def register_cdc_table(object_key: str):
     if not sequence_by:
         raise ValueError(f"{object_key}: 'sequence_by' is required for CDC.")
 
+    full_table_name = f"{catalog}.{schema}.{table_name}"
+
+    # create_streaming_table is idempotent — no-ops if the table already exists.
+    # Required before apply_changes so DLT has a target to write into on first run.
+    dp.create_streaming_table(
+        name=full_table_name,
+        comment=config.get("comment"),
+    )
+
     kwargs = dict(
-        target=f"{catalog}.{schema}.{table_name}",
+        target=full_table_name,
         source=spark.readStream.table(f"{catalog}.{schema}.{source_object}"),
         keys=keys,
         sequence_by=sequence_by,

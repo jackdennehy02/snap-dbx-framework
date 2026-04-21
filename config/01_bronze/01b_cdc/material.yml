@@ -13,7 +13,7 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_raw_material
+source_object: tbl_a_raw_material
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_b_cdc_material

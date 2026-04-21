@@ -13,7 +13,7 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_raw_component_bom
+source_object: tbl_a_raw_component_bom
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_b_cdc_component_bom

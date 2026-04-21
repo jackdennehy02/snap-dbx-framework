@@ -13,7 +13,7 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_raw_plant
+source_object: tbl_a_raw_plant
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_b_cdc_plant

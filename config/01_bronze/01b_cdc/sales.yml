@@ -13,7 +13,7 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object: tbl_raw_sales
+source_object: tbl_a_raw_sales
 
 # ── Target ──────────────────────────────────────────
 object_name: tbl_b_cdc_sales
