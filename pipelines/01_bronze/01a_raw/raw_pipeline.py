@@ -13,7 +13,7 @@ import yaml
 # ── Fallbacks for pipeline publishing ──
 CATALOG = spark.conf.get("pipeline.catalog", "snap_dbx")
 SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
-CONFIG_ROOT = spark.conf.get("pipeline.config_root")
+CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
 
 

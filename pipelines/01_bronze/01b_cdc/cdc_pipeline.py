@@ -13,7 +13,7 @@ import yaml
 # ── Fallbacks for pipeline publishing ──
 CATALOG = spark.conf.get("pipeline.catalog", "snap_dbx")
 SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
-CONFIG_ROOT = spark.conf.get("pipeline.config_root")
+CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
 # Framework audit columns added at raw ingest — never source data, never tracked.
 _ETL_AUDIT_COLUMNS = ["_etl_loaded_at", "_metadata_file_modification_time"]
@@ -103,5 +103,5 @@ def register_cdc_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,CDC Tables
-for obj in load_objects():
-    register_cdc_table(obj)
+##for obj in load_objects():
+register_cdc_table("customer")

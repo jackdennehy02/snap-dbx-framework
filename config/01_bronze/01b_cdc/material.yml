@@ -1,0 +1,45 @@
+# config/01_bronze/01b_cdc/{object_name}.yml
+# ──────────────────────────────────────────────────────
+# Bronze CDC — Databricks Auto CDC (APPLY CHANGES INTO)
+#
+# Databricks handles all column pass-through automatically.
+# No column mappings are defined here — only the Auto CDC
+# control fields that drive change detection.
+#
+# Databricks system columns generated at this layer:
+#   __START_AT  — when this version became effective
+#   __END_AT    — when superseded (NULL if current)
+# These are renamed to __etl_ convention in silver processed.
+# ──────────────────────────────────────────────────────
+
+# ── Source ──────────────────────────────────────────
+source_object: tbl_raw_material
+
+# ── Target ──────────────────────────────────────────
+object_name: tbl_b_cdc_material
+enabled: true
+catalog:                                 # override hop default
+schema:                                  # override hop default
+comment:                                 # Unity Catalog table COMMENT
+
+# ── CDC Behaviour ────────────────────────────────────
+track_changes: true                      # true = APPLY CHANGES INTO (SCD-1 or SCD-2)
+                                         # false = latest-per-key overwrite (no history, no __START_AT/__END_AT)
+
+# ── Keys ─────────────────────────────────────────────
+keys:                                    # required — business key column(s)
+  # - col_a                              # used for APPLY CHANGES INTO when track_changes: true
+  # - col_b                              # used for latest-per-key dedup when track_changes: false
+
+# ── Auto CDC Control (track_changes: true only) ──────
+sequence_by:                             # required — column used to order changes (e.g. __etl_loaded_at)
+scd_type: 2                              # 1 = overwrite in place | 2 = full version history (default)
+
+apply_as_deletes:                        # optional — SQL condition to treat a row as a delete
+                                         # e.g. "operation = 'DELETE'" (full loads only)
+ignore_null_updates: false               # if true, null values in source won't overwrite existing values
+
+track_history_column_list:               # optional — columns to track for SCD-2 history
+                                         # if omitted, all non-key columns are tracked
+  # - col_a
+  # - col_b
