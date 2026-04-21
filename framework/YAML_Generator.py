@@ -56,49 +56,47 @@ from pathlib import Path
 
 # Maps (layer, sub_layer) -> ordered folder path under config root
 HOP_FOLDERS = {
-    ("bronze", "raw"):              "01_bronze/01a_raw",
-    ("bronze", "cdc"):              "01_bronze/01b_cdc",
-    ("silver", "processed"):        "02_silver/02a_processed",
-    ("silver", "skey"):             "02_silver/02b_skey",
-    ("silver", "consolidation"):    "02_silver/02c_consolidation",
-    ("gold", "dimensional"):        "03_gold/03a_dimensional",
-    ("gold", "data_mart"):          "03_gold/03b_data_mart",
+    ("bronze", "raw"):           "01_bronze/raw",
+    ("bronze", "cdc"):           "01_bronze/cdc",
+    ("silver", "processed"):     "02_silver/processed",
+    ("silver", "skey"):          "02_silver/skey",
+    ("gold", "consolidation"):   "03_gold/consolidation",
+    ("gold", "dimensional"):     "03_gold/dimensional",
 }
 
 # Maps (layer, sub_layer) -> template filename in config_templates/
 TEMPLATE_MAP = {
-    ("bronze", "raw"):              "loading.yml",
-    ("bronze", "cdc"):              "bronze_cdc.yml",
-    ("silver", "processed"):        "silver_processed.yml",
-    ("silver", "skey"):             "silver_skey.yml",
-    ("silver", "consolidation"):    "hop.yml",
-    ("gold", "dimensional"):        "hop.yml",
-    ("gold", "data_mart"):          "hop.yml",
+    ("bronze", "raw"):           "loading.yml",
+    ("bronze", "cdc"):           "bronze_cdc.yml",
+    ("silver", "processed"):     "silver_processed.yml",
+    ("silver", "skey"):          "silver_skey.yml",
+    ("gold", "consolidation"):   "hop.yml",
+    ("gold", "dimensional"):     "hop.yml",
 }
 
-# Default object name prefixes per hop (bronze/silver only — consolidation onwards requires explicit object_name in objects.yml)
+# Default object name prefixes per hop
 OBJECT_NAME_PREFIXES = {
-    ("bronze", "raw"):              "tbl_a_raw_",
-    ("bronze", "cdc"):              "tbl_b_cdc_",
-    ("silver", "processed"):        "tbl_a_proc_",
-    ("silver", "skey"):             "tbl_b_skey_",
+    ("bronze", "raw"):           "raw_",
+    ("bronze", "cdc"):           "cdc_",
+    ("silver", "processed"):     "processed_",
+    ("silver", "skey"):          "skey_",
+    ("gold", "consolidation"):   "cons_",
 }
 
 # Hops where object_name must be explicitly set in objects.yml — no auto-generated fallback
 REQUIRES_EXPLICIT_OBJECT_NAME = {
-    ("silver", "consolidation"),
-    ("gold", "dimensional"),
-    ("gold", "data_mart"),
+    ("gold", "dimensional"),     # varies between dim_ and fact_ — must be explicit
 }
 
 # Default source object for each hop (what it reads from upstream)
 SOURCE_OBJECT_DEFAULTS = {
-    ("bronze", "cdc"):              "tbl_a_raw_{object}",
-    ("silver", "processed"):        "tbl_b_cdc_{object}",
-    ("silver", "skey"):             "tbl_a_proc_{object}",
+    ("bronze", "cdc"):           "raw_{object}",
+    ("silver", "processed"):     "cdc_{object}",
+    ("silver", "skey"):          "processed_{object}",
+    ("gold", "consolidation"):   "processed_{object}",
 }
 
-# Default catalog and schema per layer — overridden by hop_config or objects.yml if set
+# Default catalog and schema per layer — loaded from framework.yml; these are fallbacks only
 LAYER_DEFAULTS = {
     "bronze": {"catalog": "snap_dbx", "schema": "01_bronze"},
     "silver": {"catalog": "snap_dbx", "schema": "02_silver"},
@@ -324,7 +322,7 @@ def populate_processed_template(template, object_key, hop_config, top_level):
 
 def populate_skey_template(template, object_key, hop_config, top_level):
     """Silver SKEY — surrogate key mapping."""
-    object_name = hop_config.get("object_name") or f"tbl_b_skey_{object_key}"
+    object_name = hop_config.get("object_name") or f"skey_{object_key}"
     source_object = _resolve_source_object(object_key, "silver", "skey", hop_config)
     skey_column = hop_config.get("skey_column") or f"{object_key}_skey"
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
@@ -371,6 +369,10 @@ def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_l
         return populate_processed_template(template, object_key, hop_config, top_level)
     elif layer == "silver" and sub_layer == "skey":
         return populate_skey_template(template, object_key, hop_config, top_level)
+    elif layer == "gold" and sub_layer == "consolidation":
+        object_name = hop_config.get("object_name") or f"cons_{object_key}"
+        hop_config = {**hop_config, "object_name": object_name}
+        return populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level)
     else:
         return populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level)
 

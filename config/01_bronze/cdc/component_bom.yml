@@ -13,22 +13,21 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: raw_{object} — override only if non-standard
+source_object: raw_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: cdc_{object}
+object_name: cdc_component_bom
 enabled: true
-catalog:                                 # override layer default
-schema:                                  # override layer default
+catalog: snap_dbx
+schema: 01_bronze
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  # - col_a
-  # - col_b
+  - component_key
 
 # ── CDC Control ──────────────────────────────────────
-sequence_by:                             # required — column used to order changes (e.g. __source_updated_at)
+sequence_by: __source_updated_at                             # required — column used to order changes (e.g. __file_modification_time)
 scd_type: 2                              # 1 = overwrite in place (no history)
                                          # 2 = full version history (default)
 

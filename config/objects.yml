@@ -20,29 +20,29 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_raw_customer
+        object_name: raw_customer
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_cdc_customer
+        object_name: cdc_customer
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_proc_customer
+        object_name: processed_customer
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_skey_customer
+        object_name: skey_customer
+    gold:
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_c_cons_customer
-    gold:
+        object_name: cons_customer
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_dim_material
+        object_name: dim_customer
 
   material:
     source_type: cloud_storage
@@ -52,29 +52,29 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_raw_material
+        object_name: raw_material
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_cdc_material
+        object_name: cdc_material
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_proc_material
+        object_name: processed_material
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_skey_material
+        object_name: skey_material
+    gold:
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_c_cons_material
-    gold:
+        object_name: cons_material
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_dim_material
+        object_name: dim_material
 
 
   plant:
@@ -85,29 +85,29 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_raw_plant
+        object_name: raw_plant
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_cdc_plant
+        object_name: cdc_plant
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_proc_plant
+        object_name: processed_plant
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_skey_plant
+        object_name: skey_plant
+    gold:
       consolidation:
         enabled: true
         metadata_driven: true
-        object_name: tbl_c_cons_plant
-    gold:
+        object_name: cons_plant
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_dim_plant
+        object_name: dim_plant
 
 
   # ── Facts ───────────────────────────────────────────
@@ -120,29 +120,29 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_raw_sales
+        object_name: raw_sales
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_cdc_sales
+        object_name: cdc_sales
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_proc_sales
+        object_name: processed_sales
       skey:
         enabled: true
-        metadata_driven: true             
-        object_name: tbl_b_skey_sales
+        metadata_driven: true
+        object_name: skey_sales
+    gold:
       consolidation:
         enabled: true
         metadata_driven: false           # uses custom_sql — joins to dimension skey tables
-        object_name: tbl_c_cons_sales
-    gold:
+        object_name: cons_sales
       dimensional:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_fact_sales
+        object_name: fact_sales
 
 
   # ── Reference ───────────────────────────────────────
@@ -155,25 +155,24 @@ objects:
       raw:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_raw_component_bom
+        object_name: raw_component_bom
       cdc:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_cdc_component_bom
+        object_name: cdc_component_bom
     silver:
       processed:
         enabled: true
         metadata_driven: true
-        object_name: tbl_a_proc_component_bom
+        object_name: processed_component_bom
       skey:
         enabled: true
         metadata_driven: true
-        object_name: tbl_b_skey_component_bom
+        object_name: skey_component_bom
+    gold:
       consolidation:
         enabled: true
-        object_name: tbl_c_cons_component_bom
-    gold:
+        object_name: cons_component_bom
       dimensional:
         enabled: false
-        object_name: tbl_a_dim_component_bom
-
+        object_name: dim_component_bom

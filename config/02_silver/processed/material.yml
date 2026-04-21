@@ -1,0 +1,67 @@
+# config/02_silver/02a_processed/{object_name}.yml
+# ──────────────────────────────────────────────────────
+# Silver Processed — typecasting and basic cleansing only.
+#
+# Reads from the bronze CDC stream.
+# Scope: CAST, TRIM, NULLIF, date parsing.
+# No joins. No business logic. No skey resolution.
+# If it needs a join, it belongs in consolidation.
+#
+# Audit column renames (__START_AT → __etl_effective_from, etc.) are applied
+# automatically by the framework — do not add them here.
+# ──────────────────────────────────────────────────────
+
+# ── Source ──────────────────────────────────────────
+source_object: cdc_material
+
+# ── Target ──────────────────────────────────────────
+object_name: processed_material
+enabled: true
+catalog: snap_dbx
+schema: 02_silver
+comment:                                 # Unity Catalog table COMMENT
+
+# ── Read / Write Behaviour ───────────────────────────
+write_mode: streaming_table
+read_mode: stream
+
+
+primary_key_columns:                     # populated from objects.yml
+  - material_key
+
+
+leading_columns:                         # optional — columns to place first; everything else follows in source order
+  # - col_a
+  # - col_b
+
+columns:
+
+  - source_col: product_type
+    target_col: type
+    data_type: STRING
+    expression: "UPPER(product_type)"
+
+  - source_col: height_cm
+    target_col: height_cm
+    data_type: FLOAT
+    expression:
+
+  - source_col: width_cm
+    target_col: width_cm
+    data_type: FLOAT
+    expression:
+
+  - source_col: sales_tier
+    target_col: sales_tier
+    data_type: STRING
+    expression: "UPPER(sales_tier)"
+
+  - source_col: price_tier
+    target_col: price_tier
+    data_type: STRING
+    expression: "UPPER(price_tier)"
+
+    
+
+    
+

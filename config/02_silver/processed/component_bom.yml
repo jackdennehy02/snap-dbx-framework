@@ -12,13 +12,13 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: cdc_{object}
+source_object: cdc_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: processed_{object}
+object_name: processed_component_bom
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
@@ -27,7 +27,7 @@ read_mode: stream                        # stream = read from CDC stream (standa
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml
-  # - col_a
+  - component_key
 
 # ── Column Ordering ──────────────────────────────────
 leading_columns:                         # optional — columns to place first; everything else follows in source order

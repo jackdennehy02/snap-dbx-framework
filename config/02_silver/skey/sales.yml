@@ -17,13 +17,13 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: processed_{object}
+source_object: processed_sales
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: skey_{object}
+object_name: skey_sales
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
@@ -31,11 +31,10 @@ write_mode: streaming_table
 read_mode: stream
 
 # ── SKEY Configuration ───────────────────────────────
-scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version
+scd_type: 1                              # 1 = one skey per business key | 2 = one skey per version
 
 business_key_columns:                    # required — natural key(s) from source
-  # - col_a
-  # - col_b
+  - order_id
 
-skey_column:                             # required — name of the generated surrogate key column
+skey_column: sales_skey
                                          # default: {object}_skey (e.g. customer_skey)

@@ -13,23 +13,22 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: raw_{object} — override only if non-standard
+source_object: raw_sales
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: cdc_{object}
+object_name: cdc_sales
 enabled: true
-catalog:                                 # override layer default
-schema:                                  # override layer default
+catalog: snap_dbx
+schema: 01_bronze
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  # - col_a
-  # - col_b
+  - order_id
 
 # ── CDC Control ──────────────────────────────────────
-sequence_by:                             # required — column used to order changes (e.g. __source_updated_at)
-scd_type: 2                              # 1 = overwrite in place (no history)
+sequence_by: __source_updated_at                                # required — column used to order changes (e.g. __file_modification_time)
+scd_type: 1                              # 1 = overwrite in place (no history)
                                          # 2 = full version history (default)
 
 apply_as_deletes:                        # optional — SQL condition to treat a row as a delete

@@ -12,22 +12,22 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: cdc_{object}
+source_object: cdc_customer
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: processed_{object}
+object_name: processed_customer
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog: snap_dbx
+schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table              # streaming_table = incremental DLT stream | materialized_view = recomputed on each refresh
-read_mode: stream                        # stream = read from CDC stream (standard) | snapshot = full table scan (batch/reference)
+write_mode: streaming_table
+read_mode: stream
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml
-  # - col_a
+  - customer_key
 
 # ── Column Ordering ──────────────────────────────────
 leading_columns:                         # optional — columns to place first; everything else follows in source order
@@ -53,3 +53,49 @@ columns:
   #   target_col: event_date
   #   data_type: DATE
   #   expression: "TO_DATE(event_date, 'yyyy-MM-dd')"
+  
+    
+  - source_col: customer_text
+    target_col: name
+    data_type: STRING
+    expression: 
+  
+  - source_col: address_no
+    target_col: address
+    data_type: STRING
+    expression: 
+
+  - source_col: customer_type
+    target_col: type
+    data_type: STRING
+    expression: "UPPER(customer_type)"
+  
+  - source_col: postcode
+    target_col: postcode
+    data_type: STRING
+    expression: "UPPER(TRIM(postcode))"
+  
+  - source_col: city
+    target_col: city
+    data_type: STRING
+    expression: 
+  
+  - source_col: bank_account_no
+    target_col: bank_account_number_full
+    data_type: STRING
+    expression: 
+  
+  - source_col: bank_account_no
+    target_col: sort_code
+    data_type: STRING
+    expression: "SUBSTRING(bank_account_no, 1, 8)"
+
+  - source_col: bank_account_no
+    target_col: bank_account_number
+    data_type: BIGINT
+    expression: "SUBSTRING(bank_account_no, 10, 8)"
+
+
+
+
+
