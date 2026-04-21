@@ -62,10 +62,15 @@ def _user_transforms(columns_config: list) -> list:
         target = col.get("target_col")
         if not target:
             continue
-        if col.get("expression"):
-            result.append((target, F.expr(col["expression"])))
-        elif col.get("source_col"):
-            result.append((target, F.col(col["source_col"])))
+        source = col.get("source_col")
+        expr = col.get("expression")
+        data_type = col.get("data_type")
+        if expr:
+            result.append((target, F.expr(expr)))
+        elif source and data_type:
+            result.append((target, F.col(source).cast(data_type)))
+        elif source:
+            result.append((target, F.col(source)))
     return result
 
 
