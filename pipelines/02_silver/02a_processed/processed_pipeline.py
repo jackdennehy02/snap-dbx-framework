@@ -113,7 +113,7 @@ def register_processed_table(object_key: str):
         user = _user_transforms(columns_config)
         passthrough = _passthrough_cols(df.columns, skip)
 
-        col_pairs = _apply_leading_columns(framework + user + passthrough, leading_columns)
+        col_pairs = _apply_leading_columns(passthrough + user + framework, leading_columns)
 
         return df.select(*[expr.alias(name) for name, expr in col_pairs])
 
