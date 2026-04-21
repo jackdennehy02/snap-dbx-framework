@@ -22,19 +22,13 @@ catalog: snap_dbx                                # override hop default
 schema:  01_bronze                                # override hop default
 comment:                                 # Unity Catalog table COMMENT
 
-# ── CDC Behaviour ────────────────────────────────────
-track_changes: true                      # true = APPLY CHANGES INTO (SCD-1 or SCD-2)
-                                         # false = latest-per-key overwrite (no history, no __START_AT/__END_AT)
-
 # ── Keys ─────────────────────────────────────────────
 keys:
-  - customer_key                                   # required — business key column(s)
-  # - col_a                              # used for APPLY CHANGES INTO when track_changes: true
-  # - col_b                              # used for latest-per-key dedup when track_changes: false
+  - customer_key
 
-# ── Auto CDC Control (track_changes: true only) ──────
-sequence_by: __file_modification_time                          # required — column used to order changes (e.g. __etl_loaded_at)
-scd_type: 2                              # 1 = overwrite in place | 2 = full version history (default)
+# ── CDC Control ──────────────────────────────────────
+sequence_by: __file_modification_time
+scd_type: 2                              # 1 = overwrite in place (no history) | 2 = full version history
 
 apply_as_deletes:                        # optional — SQL condition to treat a row as a delete
                                          # e.g. "operation = 'DELETE'" (full loads only)

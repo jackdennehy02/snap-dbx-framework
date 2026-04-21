@@ -14,6 +14,8 @@ objects:
 
   customer:
     source_type: cloud_storage
+    primary_key_columns:
+      - customer_key
     bronze:
       raw:
         enabled: true
@@ -44,6 +46,8 @@ objects:
 
   material:
     source_type: cloud_storage
+    primary_key_columns:
+      - material_key
     bronze:
       raw:
         enabled: true
@@ -75,6 +79,8 @@ objects:
 
   plant:
     source_type: cloud_storage
+    primary_key_columns:
+      - plant_key
     bronze:
       raw:
         enabled: true
@@ -108,6 +114,8 @@ objects:
 
   sales:
     source_type: cloud_storage
+    primary_key_columns:
+      - sales_key
     bronze:
       raw:
         enabled: true
@@ -140,6 +148,9 @@ objects:
 
   component_bom:
     source_type: cloud_storage
+    primary_key_columns:
+      - component_key
+      - bom_key
     bronze:
       raw:
         enabled: true

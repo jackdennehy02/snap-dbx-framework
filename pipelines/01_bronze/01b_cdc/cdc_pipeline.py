@@ -7,7 +7,6 @@
 
 # DBTITLE 1,Loaders
 from pyspark import pipelines as dp
-from pyspark.sql import functions as F, Window
 import yaml
 
 # ── Fallbacks for pipeline publishing ──
@@ -15,8 +14,8 @@ CATALOG = spark.conf.get("pipeline.catalog", "snap_dbx")
 SCHEMA = spark.conf.get("pipeline.schema", "01_bronze")
 CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
 
-# Framework audit columns added at raw ingest — never source data, never tracked.
-_ETL_AUDIT_COLUMNS = ["__etl_loaded_at", "__file_modification_time"]
+# Columns excluded from CDC target — framework audit cols and Auto Loader internals.
+_CDC_EXCLUDED_COLUMNS = ["__etl_loaded_at", "__file_modification_time", "_rescue_data"]
 
 # COMMAND ----------
 
@@ -40,45 +39,26 @@ def load_cdc_config(object_key: str) -> dict:
 
 
 def register_cdc_table(object_key: str):
-    """Register a CDC table from YAML config — tracked (AUTO CDC) or untracked (full overwrite)."""
+    """Register a CDC table from YAML config using Auto CDC."""
     config = load_cdc_config(object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
     schema = config.get("schema", SCHEMA)
     source_object = config["source_object"]
-    track_changes = config.get("track_changes", True)
 
     keys = config.get("keys") or []
+    sequence_by = config.get("sequence_by")
 
     if not keys:
         raise ValueError(f"{object_key}: 'keys' is required for CDC.")
-
-    if not track_changes:
-        @dp.table(
-            name=f"{catalog}.{schema}.{table_name}",
-            comment=config.get("comment"),
-        )
-        def _load():
-            w = Window.partitionBy(*keys).orderBy(F.col("__file_modification_time").desc())
-            return (
-                spark.read.table(f"{catalog}.{schema}.{source_object}")
-                .withColumn("_rn", F.row_number().over(w))
-                .filter(F.col("_rn") == 1)
-                .drop("_rn")
-            )
-        return
-
-    sequence_by = config.get("sequence_by")
-
     if not sequence_by:
         raise ValueError(f"{object_key}: 'sequence_by' is required for CDC.")
 
     full_table_name = f"{catalog}.{schema}.{table_name}"
-    source_table_name = f"{catalog}.{schema}.{source_object}"
 
     # create_streaming_table is idempotent — no-ops if the table already exists.
-    # Required before create_auto_cdc_flow so it has a target to write into on first run.
+    # Required before create_auto_cdc_flow so DLT has a target on first run.
     dp.create_streaming_table(
         name=full_table_name,
         comment=config.get("comment"),
@@ -86,12 +66,12 @@ def register_cdc_table(object_key: str):
 
     kwargs = dict(
         target=full_table_name,
-        source=source_table_name,
+        source=f"{catalog}.{schema}.{source_object}",
         keys=keys,
         sequence_by=sequence_by,
         stored_as_scd_type=config.get("scd_type", 2),
         ignore_null_updates=config.get("ignore_null_updates", False),
-        except_column_list=_ETL_AUDIT_COLUMNS,
+        except_column_list=_CDC_EXCLUDED_COLUMNS,
     )
 
     if config.get("apply_as_deletes"):

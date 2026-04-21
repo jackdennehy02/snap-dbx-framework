@@ -13,27 +13,24 @@
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
-source_object:                           # default: tbl_raw_{object} — override only if non-standard
+source_object:                           # default: tbl_a_raw_{object} — override only if non-standard
 
 # ── Target ──────────────────────────────────────────
-object_name:                             # default: tbl_cdc_{object}
+object_name:                             # default: tbl_b_cdc_{object}
 enabled: true
-catalog:                                 # override hop default
-schema:                                  # override hop default
+catalog:                                 # override layer default
+schema:                                  # override layer default
 comment:                                 # Unity Catalog table COMMENT
 
-# ── CDC Behaviour ────────────────────────────────────
-track_changes: true                      # true = APPLY CHANGES INTO (SCD-1 or SCD-2)
-                                         # false = latest-per-key overwrite (no history, no __START_AT/__END_AT)
-
 # ── Keys ─────────────────────────────────────────────
-keys:                                    # required — business key column(s)
-  # - col_a                              # used for APPLY CHANGES INTO when track_changes: true
-  # - col_b                              # used for latest-per-key dedup when track_changes: false
+keys:                                    # required — business key column(s); populated from objects.yml
+  # - col_a
+  # - col_b
 
-# ── Auto CDC Control (track_changes: true only) ──────
+# ── CDC Control ──────────────────────────────────────
 sequence_by:                             # required — column used to order changes (e.g. __file_modification_time)
-scd_type: 2                              # 1 = overwrite in place | 2 = full version history (default)
+scd_type: 2                              # 1 = overwrite in place (no history)
+                                         # 2 = full version history (default)
 
 apply_as_deletes:                        # optional — SQL condition to treat a row as a delete
                                          # e.g. "operation = 'DELETE'" (full loads only)

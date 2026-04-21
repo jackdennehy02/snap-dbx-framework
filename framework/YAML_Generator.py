@@ -98,6 +98,13 @@ SOURCE_OBJECT_DEFAULTS = {
     ("silver", "skey"):             "tbl_proc_{object}",
 }
 
+# Default catalog and schema per layer — overridden by hop_config or objects.yml if set
+LAYER_DEFAULTS = {
+    "bronze": {"catalog": "snap_dbx", "schema": "01_bronze"},
+    "silver": {"catalog": "snap_dbx", "schema": "02_silver"},
+    "gold":   {"catalog": "snap_dbx", "schema": "03_gold"},
+}
+
 # Connection section markers in the loading template
 CONNECTION_SECTION_MARKERS = {
     "cloud_storage":        "# ── cloud_storage",
@@ -232,6 +239,33 @@ def _resolve_source_object(object_key: str, layer: str, sub_layer: str, hop_conf
     template = SOURCE_OBJECT_DEFAULTS.get((layer, sub_layer), "")
     return template.replace("{object}", object_key)
 
+
+def _inject_yaml_list(content: str, field_name: str, values: list) -> str:
+    """
+    Replace a YAML list field's commented-out placeholder lines with actual values.
+    No-ops if values is empty.
+    """
+    if not values:
+        return content
+    lines = content.splitlines()
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if re.match(rf'^\s*{re.escape(field_name)}:\s*(#.*)?$', line):
+            result.append(line)
+            i += 1
+            # Skip commented placeholder lines (e.g. "  # - col_a")
+            while i < len(lines) and re.match(r'^\s*#\s*-\s*', lines[i]):
+                i += 1
+            indent = re.match(r'^(\s*)', line).group(1) + "  "
+            for v in values:
+                result.append(f"{indent}- {v}")
+        else:
+            result.append(line)
+            i += 1
+    return "\n".join(result)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -242,15 +276,15 @@ def _resolve_source_object(object_key: str, layer: str, sub_layer: str, hop_conf
 def populate_loading_template(template, object_key, hop_config, top_level):
     """Bronze raw — loading template."""
     source_type = top_level.get("source_type") or ""
-    object_name = hop_config.get("object_name") or f"tbl_raw_{object_key}"
+    object_name = hop_config.get("object_name") or f"tbl_a_raw_{object_key}"
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     content = strip_irrelevant_connections(template, source_type)
     content = _substitute_fields(content, {
         "source_type": source_type,
         "object_name": object_name,
-        "catalog": hop_config.get("catalog") or "",
-        "schema": hop_config.get("schema") or "",
+        "catalog": top_level["catalog"],
+        "schema":  top_level["schema"],
         "enabled": str(enabled).lower(),
     })
     return content
@@ -258,51 +292,52 @@ def populate_loading_template(template, object_key, hop_config, top_level):
 
 def populate_cdc_template(template, object_key, hop_config, top_level):
     """Bronze CDC — Auto CDC template."""
-    object_name = hop_config.get("object_name") or f"tbl_cdc_{object_key}"
+    object_name = hop_config.get("object_name") or f"tbl_b_cdc_{object_key}"
     source_object = _resolve_source_object(object_key, "bronze", "cdc", hop_config)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
-    track_changes = hop_config.get("track_changes") if hop_config.get("track_changes") is not None else True
 
-    return _substitute_fields(template, {
+    content = _substitute_fields(template, {
         "source_object": source_object,
-        "object_name": object_name,
-        "enabled": str(enabled).lower(),
-        "track_changes": str(track_changes).lower(),
-        "catalog": hop_config.get("catalog") or "",
-        "schema": hop_config.get("schema") or "",
+        "object_name":   object_name,
+        "enabled":       str(enabled).lower(),
+        "catalog":       top_level["catalog"],
+        "schema":        top_level["schema"],
     })
+    return _inject_yaml_list(content, "keys", top_level.get("primary_key_columns", []))
 
 
 def populate_processed_template(template, object_key, hop_config, top_level):
     """Silver processed — typecasting and basic cleansing."""
-    object_name = hop_config.get("object_name") or f"tbl_proc_{object_key}"
+    object_name = hop_config.get("object_name") or f"tbl_a_proc_{object_key}"
     source_object = _resolve_source_object(object_key, "silver", "processed", hop_config)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
-    return _substitute_fields(template, {
+    content = _substitute_fields(template, {
         "source_object": source_object,
-        "object_name": object_name,
-        "enabled": str(enabled).lower(),
-        "catalog": hop_config.get("catalog") or "",
-        "schema": hop_config.get("schema") or "",
+        "object_name":   object_name,
+        "enabled":       str(enabled).lower(),
+        "catalog":       top_level["catalog"],
+        "schema":        top_level["schema"],
     })
+    return _inject_yaml_list(content, "primary_key_columns", top_level.get("primary_key_columns", []))
 
 
 def populate_skey_template(template, object_key, hop_config, top_level):
     """Silver SKEY — surrogate key mapping."""
-    object_name = hop_config.get("object_name") or f"tbl_skey_{object_key}"
+    object_name = hop_config.get("object_name") or f"tbl_b_skey_{object_key}"
     source_object = _resolve_source_object(object_key, "silver", "skey", hop_config)
     skey_column = hop_config.get("skey_column") or f"{object_key}_skey"
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
-    return _substitute_fields(template, {
+    content = _substitute_fields(template, {
         "source_object": source_object,
-        "object_name": object_name,
-        "skey_column": skey_column,
-        "enabled": str(enabled).lower(),
-        "catalog": hop_config.get("catalog") or "",
-        "schema": hop_config.get("schema") or "",
+        "object_name":   object_name,
+        "skey_column":   skey_column,
+        "enabled":       str(enabled).lower(),
+        "catalog":       top_level["catalog"],
+        "schema":        top_level["schema"],
     })
+    return _inject_yaml_list(content, "business_key_columns", top_level.get("primary_key_columns", []))
 
 
 def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config, top_level):
@@ -310,17 +345,24 @@ def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config,
     object_name = hop_config.get("object_name") or ""
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
-    return _substitute_fields(template, {
-        "object_name": object_name,
+    content = _substitute_fields(template, {
+        "object_name":  object_name,
         "object_alias": top_level.get("object_alias") or "",
-        "enabled": str(enabled).lower(),
-        "catalog": hop_config.get("catalog") or "",
-        "schema": hop_config.get("schema") or "",
+        "enabled":      str(enabled).lower(),
+        "catalog":      top_level["catalog"],
+        "schema":       top_level["schema"],
     })
+    return _inject_yaml_list(content, "primary_key_columns", top_level.get("primary_key_columns", []))
 
 
 def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level):
     """Route to the correct populate function based on layer/sub_layer."""
+    layer_defaults = LAYER_DEFAULTS.get(layer, {})
+    top_level = {
+        **top_level,
+        "catalog": hop_config.get("catalog") or layer_defaults.get("catalog", ""),
+        "schema":  hop_config.get("schema")  or layer_defaults.get("schema",  ""),
+    }
     if layer == "bronze" and sub_layer == "raw":
         return populate_loading_template(template, object_key, hop_config, top_level)
     elif layer == "bronze" and sub_layer == "cdc":
@@ -380,8 +422,9 @@ def generate_configs(config_root: str, template_dir: str, objects_file: str):
             continue
 
         top_level = {
-            "object_alias": obj_config.get("object_alias"),
-            "source_type":  obj_config.get("source_type"),
+            "object_alias":         obj_config.get("object_alias"),
+            "source_type":          obj_config.get("source_type"),
+            "primary_key_columns":  obj_config.get("primary_key_columns") or [],
         }
 
         for layer in ("bronze", "silver", "gold"):
