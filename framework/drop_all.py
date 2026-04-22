@@ -9,7 +9,8 @@
 # DBTITLE 1,Cell 2
 import yaml
 
-CONFIG_ROOT = "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config"
+dbutils.widgets.text("config_root", "", "pipeline.ev_config_root value from databricks.yml")
+CONFIG_ROOT = dbutils.widgets.get("config_root")
 
 CATALOG = "snap_dbx"
 

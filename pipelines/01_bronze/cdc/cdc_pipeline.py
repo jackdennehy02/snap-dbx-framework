@@ -9,15 +9,9 @@
 from pyspark import pipelines as dp
 import yaml
 
-CONFIG_ROOT = spark.conf.get("pipeline.config_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework/config")
-
-def load_framework_config() -> dict:
-    with open(f"{CONFIG_ROOT}/framework.yml", "r") as f:
-        return yaml.safe_load(f)
-
-_FW = load_framework_config()
-CATALOG = _FW["catalogs"]["bronze"]
-SCHEMA  = _FW["schemas"]["bronze"]
+CONFIG_ROOT = spark.conf.get("pipeline.ev_config_root")
+CATALOG     = spark.conf.get("pipeline.catalog_bronze")
+SCHEMA      = spark.conf.get("pipeline.schema_bronze")
 
 # Columns excluded from CDC target — Auto Loader internals only.
 # __etl_loaded_at and __source_updated_time pass through to silver.

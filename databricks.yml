@@ -1,0 +1,34 @@
+bundle:
+  name: snap-dbx-framework
+
+variables:
+  config_root:
+    description: "Workspace path to the framework config directory (ev_config_root in framework.yml)."
+    default: /Workspace/Users/dennehy.jack01@gmail.com/snap-dbx-framework/config
+
+resources:
+  pipelines:
+    snap_dbx_framework:
+      name: snap-dbx-framework
+      serverless: true
+      configuration:
+        pipeline.ev_config_root:    ${var.config_root}
+        pipeline.ev_end_date:       "9999-12-31 23:59:59"
+        pipeline.ev_start_date:     "2000-01-01 00:00:00"
+        pipeline.ev_null_value:     "^^"
+        pipeline.ev_field_separator: "||"
+        pipeline.catalog_bronze:    snap_dbx
+        pipeline.schema_bronze:     01_bronze
+        pipeline.catalog_silver:    snap_dbx
+        pipeline.schema_silver:     02_silver
+        pipeline.catalog_gold:      snap_dbx
+        pipeline.schema_gold:       03_gold
+      libraries:
+        - notebook:
+            path: ./pipelines/01_bronze/raw/raw_pipeline.py
+        - notebook:
+            path: ./pipelines/01_bronze/cdc/cdc_pipeline.py
+        - notebook:
+            path: ./pipelines/02_silver/processed/processed_pipeline.py
+        - notebook:
+            path: ./pipelines/02_silver/skey/skey_pipeline.py

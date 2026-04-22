@@ -16,24 +16,21 @@
 
 # COMMAND ----------
 
-# dbutils.widgets.text("project_root", "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework", "Project root path")
-# dbutils.widgets.text("objects_file", "objects.yml", "Objects registry filename (relative to config/)")
-
-# Uncomment the above in Databricks. For local testing, use defaults:
 import os
 
-PROJECT_ROOT = os.environ.get(
-    "PROJECT_ROOT",
-    "/Workspace/Users/jack.dennehy@snapanalytics.co.uk/snap-academy-internal-project/snap-dbx-framework",
-)
-OBJECTS_FILE = os.environ.get("OBJECTS_FILE", "objects.yml")
+dbutils.widgets.text("config_root",    "", "pipeline.ev_config_root value from databricks.yml")
+dbutils.widgets.text("objects_file",   "objects.yml", "Objects registry filename (relative to config/)")
+dbutils.widgets.text("catalog_bronze", "snap_dbx",  "pipeline.catalog_bronze")
+dbutils.widgets.text("schema_bronze",  "01_bronze",  "pipeline.schema_bronze")
+dbutils.widgets.text("catalog_silver", "snap_dbx",  "pipeline.catalog_silver")
+dbutils.widgets.text("schema_silver",  "02_silver",  "pipeline.schema_silver")
+dbutils.widgets.text("catalog_gold",   "snap_dbx",  "pipeline.catalog_gold")
+dbutils.widgets.text("schema_gold",    "03_gold",    "pipeline.schema_gold")
 
-# In Databricks, replace the above with:
-# PROJECT_ROOT = dbutils.widgets.get("project_root")
-# OBJECTS_FILE = dbutils.widgets.get("objects_file")
+CONFIG_ROOT  = dbutils.widgets.get("config_root")
+OBJECTS_FILE = dbutils.widgets.get("objects_file")
 
-# Derived paths
-CONFIG_ROOT = os.path.join(PROJECT_ROOT, "config")
+PROJECT_ROOT = os.path.dirname(CONFIG_ROOT)
 TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "config_templates")
 
 # COMMAND ----------
@@ -44,7 +41,6 @@ TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "config_templates")
 # COMMAND ----------
 
 import re
-import yaml
 from pathlib import Path
 
 # COMMAND ----------
@@ -96,11 +92,11 @@ SOURCE_OBJECT_DEFAULTS = {
     ("gold", "consolidation"):   "processed_{object}",
 }
 
-# Default catalog and schema per layer — loaded from framework.yml; these are fallbacks only
+# Default catalog and schema per layer — sourced from pipeline config key-value pairs
 LAYER_DEFAULTS = {
-    "bronze": {"catalog": "snap_dbx", "schema": "01_bronze"},
-    "silver": {"catalog": "snap_dbx", "schema": "02_silver"},
-    "gold":   {"catalog": "snap_dbx", "schema": "03_gold"},
+    "bronze": {"catalog": dbutils.widgets.get("catalog_bronze"), "schema": dbutils.widgets.get("schema_bronze")},
+    "silver": {"catalog": dbutils.widgets.get("catalog_silver"), "schema": dbutils.widgets.get("schema_silver")},
+    "gold":   {"catalog": dbutils.widgets.get("catalog_gold"),   "schema": dbutils.widgets.get("schema_gold")},
 }
 
 # Connection section markers in the loading template

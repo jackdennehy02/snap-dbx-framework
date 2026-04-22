@@ -16,6 +16,7 @@ schemas:
   gold: 03_gold
 
 environment:
+  ev_config_root: "/Workspace/Users/dennehy.jack01@gmail.com/snap-dbx-framework/config"
   ev_end_date: "9999-12-31 23:59:59"      # effective-to sentinel for current records
   ev_start_date: "2000-01-01 00:00:00"    # default effective-from for initial loads
   ev_null_value: "^^"                     # null sentinel applied across the pipeline
