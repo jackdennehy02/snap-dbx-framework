@@ -12,8 +12,8 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
 CONFIG_ROOT = spark.conf.get("ev_config_root")
-CATALOG     = spark.conf.get("catalog_bronze")
-SCHEMA      = spark.conf.get("schema_bronze")
+CATALOG     = spark.conf.get("catalog_raw")
+SCHEMA      = spark.conf.get("schema_raw")
 
 
 # ── Source reader builders ──────────────────────────────────────────────────

@@ -11,12 +11,12 @@
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
-CONFIG_ROOT      = spark.conf.get("ev_config_root")
-CATALOG          = spark.conf.get("catalog_silver")
-SCHEMA           = spark.conf.get("schema_silver")
-SILVER_CATALOG   = spark.conf.get("catalog_silver")
-SILVER_SCHEMA    = spark.conf.get("schema_silver")
-_FIELD_SEPARATOR = spark.conf.get("ev_field_separator")
+CONFIG_ROOT       = spark.conf.get("ev_config_root")
+CATALOG           = spark.conf.get("catalog_skey")
+SCHEMA            = spark.conf.get("schema_skey")
+PROCESSED_CATALOG = spark.conf.get("catalog_processed")
+PROCESSED_SCHEMA  = spark.conf.get("schema_processed")
+_FIELD_SEPARATOR  = spark.conf.get("ev_field_separator")
 
 
 # ── Column builders ──────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ def register_skey_table(object_key: str):
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{SILVER_CATALOG}.{SILVER_SCHEMA}.{source_object}")
+        df = spark.readStream.table(f"{PROCESSED_CATALOG}.{PROCESSED_SCHEMA}.{source_object}")
 
         if scd_type == 2 and "__etl_effective_from" not in df.columns:
             raise ValueError(

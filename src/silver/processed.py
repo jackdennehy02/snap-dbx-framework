@@ -11,12 +11,12 @@
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
-CONFIG_ROOT    = spark.conf.get("ev_config_root")
-CATALOG        = spark.conf.get("catalog_silver")
-SCHEMA         = spark.conf.get("schema_silver")
-BRONZE_CATALOG = spark.conf.get("catalog_bronze")
-BRONZE_SCHEMA  = spark.conf.get("schema_bronze")
-_EV_END_DATE   = spark.conf.get("ev_end_date")
+CONFIG_ROOT  = spark.conf.get("ev_config_root")
+CATALOG      = spark.conf.get("catalog_processed")
+SCHEMA       = spark.conf.get("schema_processed")
+CDC_CATALOG  = spark.conf.get("catalog_cdc")
+CDC_SCHEMA   = spark.conf.get("schema_cdc")
+_EV_END_DATE = spark.conf.get("ev_end_date")
 
 # Source columns consumed by the framework — excluded from passthrough.
 _FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT", "__etl_loaded_at", "__source_updated_at"}
@@ -113,7 +113,7 @@ def register_processed_table(object_key: str):
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{BRONZE_CATALOG}.{BRONZE_SCHEMA}.{source_object}")
+        df = spark.readStream.table(f"{CDC_CATALOG}.{CDC_SCHEMA}.{source_object}")
 
         framework = _framework_transforms(df.columns)
         user = _user_transforms(columns_config)

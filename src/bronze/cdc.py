@@ -11,8 +11,10 @@
 from pyspark import pipelines as dp
 
 CONFIG_ROOT = spark.conf.get("ev_config_root")
-CATALOG     = spark.conf.get("catalog_bronze")
-SCHEMA      = spark.conf.get("schema_bronze")
+CATALOG     = spark.conf.get("catalog_cdc")
+SCHEMA      = spark.conf.get("schema_cdc")
+RAW_CATALOG = spark.conf.get("catalog_raw")
+RAW_SCHEMA  = spark.conf.get("schema_raw")
 
 # Columns excluded from CDC target — Auto Loader internals only.
 # __etl_loaded_at and __source_updated_time pass through to silver.

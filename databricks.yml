@@ -31,10 +31,14 @@ resources:
         ev_start_date:      "2000-01-01 00:00:00"
         ev_null_value:      "^^"
         ev_field_separator: "||"
-        catalog_bronze:     ${var.catalog}
-        schema_bronze:      01_bronze
-        catalog_silver:     ${var.catalog}
-        schema_silver:      02_silver
+        catalog_raw:        ${var.catalog}
+        schema_raw:         01_bronze
+        catalog_cdc:        ${var.catalog}
+        schema_cdc:         01_bronze
+        catalog_processed:  ${var.catalog}
+        schema_processed:   02_silver
+        catalog_skey:       ${var.catalog}
+        schema_skey:        02_silver
         catalog_gold:       ${var.catalog}
         schema_gold:        03_gold
       libraries:

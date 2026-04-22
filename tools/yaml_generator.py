@@ -20,10 +20,14 @@ import os
 
 dbutils.widgets.text("config_root",    "", "pipeline.ev_config_root value from databricks.yml")
 dbutils.widgets.text("objects_file",   "objects.yml", "Objects registry filename (relative to config/)")
-dbutils.widgets.text("catalog_bronze", "snap_dbx",  "catalog_bronze")
-dbutils.widgets.text("schema_bronze",  "01_bronze",  "schema_bronze")
-dbutils.widgets.text("catalog_silver", "snap_dbx",  "catalog_silver")
-dbutils.widgets.text("schema_silver",  "02_silver",  "schema_silver")
+dbutils.widgets.text("catalog_raw",       "snap_dbx",  "catalog_raw")
+dbutils.widgets.text("schema_raw",        "01_bronze", "schema_raw")
+dbutils.widgets.text("catalog_cdc",       "snap_dbx",  "catalog_cdc")
+dbutils.widgets.text("schema_cdc",        "01_bronze", "schema_cdc")
+dbutils.widgets.text("catalog_processed", "snap_dbx",  "catalog_processed")
+dbutils.widgets.text("schema_processed",  "02_silver", "schema_processed")
+dbutils.widgets.text("catalog_skey",      "snap_dbx",  "catalog_skey")
+dbutils.widgets.text("schema_skey",       "02_silver", "schema_skey")
 
 CONFIG_ROOT  = dbutils.widgets.get("config_root")
 OBJECTS_FILE = dbutils.widgets.get("objects_file")
@@ -71,10 +75,12 @@ SOURCE_OBJECT_DEFAULTS = {
     ("silver", "skey"):      "processed_{object}",
 }
 
-# Default catalog and schema per layer — sourced from pipeline config key-value pairs
-LAYER_DEFAULTS = {
-    "bronze": {"catalog": dbutils.widgets.get("catalog_bronze"), "schema": dbutils.widgets.get("schema_bronze")},
-    "silver": {"catalog": dbutils.widgets.get("catalog_silver"), "schema": dbutils.widgets.get("schema_silver")},
+# Default catalog and schema per hop — sourced from pipeline config key-value pairs
+HOP_DEFAULTS = {
+    ("bronze", "raw"):       {"catalog": dbutils.widgets.get("catalog_raw"),       "schema": dbutils.widgets.get("schema_raw")},
+    ("bronze", "cdc"):       {"catalog": dbutils.widgets.get("catalog_cdc"),       "schema": dbutils.widgets.get("schema_cdc")},
+    ("silver", "processed"): {"catalog": dbutils.widgets.get("catalog_processed"), "schema": dbutils.widgets.get("schema_processed")},
+    ("silver", "skey"):      {"catalog": dbutils.widgets.get("catalog_skey"),      "schema": dbutils.widgets.get("schema_skey")},
 }
 
 # Connection section markers in the loading template
@@ -329,7 +335,7 @@ def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config,
 
 def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level):
     """Route to the correct populate function based on layer/sub_layer."""
-    layer_defaults = LAYER_DEFAULTS.get(layer, {})
+    layer_defaults = HOP_DEFAULTS.get((layer, sub_layer), {})
     top_level = {
         **top_level,
         "catalog": hop_config.get("catalog") or layer_defaults.get("catalog", ""),
