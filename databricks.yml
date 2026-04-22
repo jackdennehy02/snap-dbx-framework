@@ -2,33 +2,47 @@ bundle:
   name: snap-dbx-framework
 
 variables:
+  catalog:
+    description: "Unity Catalog catalog name."
+    default: snap_dbx
   config_root:
     description: "Workspace path to the framework config directory (ev_config_root in framework.yml)."
     default: /Workspace/Users/dennehy.jack01@gmail.com/snap-dbx-framework/config
 
 resources:
+  schemas:
+    bronze:
+      catalog_name: ${var.catalog}
+      name: 01_bronze
+    silver:
+      catalog_name: ${var.catalog}
+      name: 02_silver
+    gold:
+      catalog_name: ${var.catalog}
+      name: 03_gold
+
   pipelines:
     snap_dbx_framework:
       name: snap-dbx-framework
       serverless: true
       configuration:
-        ev_config_root:    ${var.config_root}
-        ev_end_date:       "9999-12-31 23:59:59"
-        ev_start_date:     "2000-01-01 00:00:00"
-        ev_null_value:     "^^"
+        ev_config_root:     ${var.config_root}
+        ev_end_date:        "9999-12-31 23:59:59"
+        ev_start_date:      "2000-01-01 00:00:00"
+        ev_null_value:      "^^"
         ev_field_separator: "||"
-        catalog_bronze:    snap_dbx
-        schema_bronze:     01_bronze
-        catalog_silver:    snap_dbx
-        schema_silver:     02_silver
-        catalog_gold:      snap_dbx
-        schema_gold:       03_gold
+        catalog_bronze:     ${var.catalog}
+        schema_bronze:      01_bronze
+        catalog_silver:     ${var.catalog}
+        schema_silver:      02_silver
+        catalog_gold:       ${var.catalog}
+        schema_gold:        03_gold
       libraries:
         - notebook:
-            path: ./pipelines/01_bronze/raw/raw_py
+            path: ./src/bronze/raw.py
         - notebook:
-            path: ./pipelines/01_bronze/cdc/cdc_py
+            path: ./src/bronze/cdc.py
         - notebook:
-            path: ./pipelines/02_silver/processed/processed_py
+            path: ./src/silver/processed.py
         - notebook:
-            path: ./pipelines/02_silver/skey/skey_py
+            path: ./src/silver/skey.py

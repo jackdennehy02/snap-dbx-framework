@@ -20,12 +20,10 @@ import os
 
 dbutils.widgets.text("config_root",    "", "pipeline.ev_config_root value from databricks.yml")
 dbutils.widgets.text("objects_file",   "objects.yml", "Objects registry filename (relative to config/)")
-dbutils.widgets.text("catalog_bronze", "snap_dbx",  "pipeline.catalog_bronze")
-dbutils.widgets.text("schema_bronze",  "01_bronze",  "pipeline.schema_bronze")
-dbutils.widgets.text("catalog_silver", "snap_dbx",  "pipeline.catalog_silver")
-dbutils.widgets.text("schema_silver",  "02_silver",  "pipeline.schema_silver")
-dbutils.widgets.text("catalog_gold",   "snap_dbx",  "pipeline.catalog_gold")
-dbutils.widgets.text("schema_gold",    "03_gold",    "pipeline.schema_gold")
+dbutils.widgets.text("catalog_bronze", "snap_dbx",  "catalog_bronze")
+dbutils.widgets.text("schema_bronze",  "01_bronze",  "schema_bronze")
+dbutils.widgets.text("catalog_silver", "snap_dbx",  "catalog_silver")
+dbutils.widgets.text("schema_silver",  "02_silver",  "schema_silver")
 
 CONFIG_ROOT  = dbutils.widgets.get("config_root")
 OBJECTS_FILE = dbutils.widgets.get("objects_file")
@@ -52,51 +50,31 @@ from pathlib import Path
 
 # Maps (layer, sub_layer) -> ordered folder path under config root
 HOP_FOLDERS = {
-    ("bronze", "raw"):           "01_bronze/raw",
-    ("bronze", "cdc"):           "01_bronze/cdc",
-    ("silver", "processed"):     "02_silver/processed",
-    ("silver", "skey"):          "02_silver/skey",
-    ("gold", "consolidation"):   "03_gold/consolidation",
-    ("gold", "dimensional"):     "03_gold/dimensional",
+    ("bronze", "raw"):       "01_bronze/raw",
+    ("bronze", "cdc"):       "01_bronze/cdc",
+    ("silver", "processed"): "02_silver/processed",
+    ("silver", "skey"):      "02_silver/skey",
 }
 
 # Maps (layer, sub_layer) -> template filename in config_templates/
 TEMPLATE_MAP = {
-    ("bronze", "raw"):           "loading.yml",
-    ("bronze", "cdc"):           "bronze_cdc.yml",
-    ("silver", "processed"):     "silver_processed.yml",
-    ("silver", "skey"):          "silver_skey.yml",
-    ("gold", "consolidation"):   "hop.yml",
-    ("gold", "dimensional"):     "hop.yml",
-}
-
-# Default object name prefixes per hop
-OBJECT_NAME_PREFIXES = {
-    ("bronze", "raw"):           "raw_",
-    ("bronze", "cdc"):           "cdc_",
-    ("silver", "processed"):     "processed_",
-    ("silver", "skey"):          "skey_",
-    ("gold", "consolidation"):   "cons_",
-}
-
-# Hops where object_name must be explicitly set in objects.yml — no auto-generated fallback
-REQUIRES_EXPLICIT_OBJECT_NAME = {
-    ("gold", "dimensional"),     # varies between dim_ and fact_ — must be explicit
+    ("bronze", "raw"):       "loading.yml",
+    ("bronze", "cdc"):       "bronze_cdc.yml",
+    ("silver", "processed"): "silver_processed.yml",
+    ("silver", "skey"):      "silver_skey.yml",
 }
 
 # Default source object for each hop (what it reads from upstream)
 SOURCE_OBJECT_DEFAULTS = {
-    ("bronze", "cdc"):           "raw_{object}",
-    ("silver", "processed"):     "cdc_{object}",
-    ("silver", "skey"):          "processed_{object}",
-    ("gold", "consolidation"):   "processed_{object}",
+    ("bronze", "cdc"):       "raw_{object}",
+    ("silver", "processed"): "cdc_{object}",
+    ("silver", "skey"):      "processed_{object}",
 }
 
 # Default catalog and schema per layer — sourced from pipeline config key-value pairs
 LAYER_DEFAULTS = {
     "bronze": {"catalog": dbutils.widgets.get("catalog_bronze"), "schema": dbutils.widgets.get("schema_bronze")},
     "silver": {"catalog": dbutils.widgets.get("catalog_silver"), "schema": dbutils.widgets.get("schema_silver")},
-    "gold":   {"catalog": dbutils.widgets.get("catalog_gold"),   "schema": dbutils.widgets.get("schema_gold")},
 }
 
 # Connection section markers in the loading template
@@ -335,7 +313,7 @@ def populate_skey_template(template, object_key, hop_config, top_level):
 
 
 def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config, top_level):
-    """Standard hop template — consolidation and gold."""
+    """Standard hop template — fallback for unrecognised hops."""
     object_name = hop_config.get("object_name") or ""
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
@@ -365,10 +343,6 @@ def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_l
         return populate_processed_template(template, object_key, hop_config, top_level)
     elif layer == "silver" and sub_layer == "skey":
         return populate_skey_template(template, object_key, hop_config, top_level)
-    elif layer == "gold" and sub_layer == "consolidation":
-        object_name = hop_config.get("object_name") or f"cons_{object_key}"
-        hop_config = {**hop_config, "object_name": object_name}
-        return populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level)
     else:
         return populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level)
 
@@ -425,7 +399,7 @@ def generate_configs(config_root: str, template_dir: str, objects_file: str):
             "primary_key_columns":  obj_config.get("primary_key_columns") or [],
         }
 
-        for layer in ("bronze", "silver", "gold"):
+        for layer in ("bronze", "silver"):
             layer_config = obj_config.get(layer)
             if not layer_config:
                 continue

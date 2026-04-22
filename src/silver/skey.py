@@ -6,7 +6,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
-# MAGIC %run ../../../framework/utils
+# MAGIC %run ../../tools/utils
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
