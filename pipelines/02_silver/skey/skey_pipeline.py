@@ -6,9 +6,10 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
+# MAGIC %run ../../../framework/utils
+
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import yaml
 
 CONFIG_ROOT      = spark.conf.get("ev_config_root")
 CATALOG          = spark.conf.get("catalog_silver")
@@ -16,24 +17,6 @@ SCHEMA           = spark.conf.get("schema_silver")
 SILVER_CATALOG   = spark.conf.get("catalog_silver")
 SILVER_SCHEMA    = spark.conf.get("schema_silver")
 _FIELD_SEPARATOR = spark.conf.get("ev_field_separator")
-
-# COMMAND ----------
-
-
-def load_objects() -> list[str]:
-    """Return object keys that have silver skey enabled in objects.yml."""
-    with open(f"{CONFIG_ROOT}/objects.yml", "r") as f:
-        registry = yaml.safe_load(f)
-    return [
-        key for key, obj in registry["objects"].items()
-        if obj.get("silver", {}).get("skey", {}).get("enabled", False)
-    ]
-
-
-def load_skey_config(object_key: str) -> dict:
-    """Load silver skey config for a given object."""
-    with open(f"{CONFIG_ROOT}/02_silver/skey/{object_key}.yml", "r") as f:
-        return yaml.safe_load(f)
 
 
 # ── Column builders ──────────────────────────────────────────────────────────
@@ -53,7 +36,7 @@ def _skey_expr(business_key_columns: list[str], scd_type: int) -> F.Column:
 
 def register_skey_table(object_key: str):
     """Register a silver skey table from YAML config."""
-    config = load_skey_config(object_key)
+    config = load_hop_config(CONFIG_ROOT, "02_silver/skey", object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -92,5 +75,5 @@ def register_skey_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,SKEY Tables
-for obj in load_objects():
+for obj in load_objects(CONFIG_ROOT, "silver", "skey"):
     register_skey_table(obj)

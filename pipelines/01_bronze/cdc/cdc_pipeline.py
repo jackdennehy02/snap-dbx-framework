@@ -6,8 +6,9 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
+# MAGIC %run ../../../framework/utils
+
 from pyspark import pipelines as dp
-import yaml
 
 CONFIG_ROOT = spark.conf.get("ev_config_root")
 CATALOG     = spark.conf.get("catalog_bronze")
@@ -19,28 +20,10 @@ _CDC_EXCLUDED_COLUMNS = ["_rescued_data"]
 
 # COMMAND ----------
 
-# DBTITLE 1,Cell 3
-
-def load_objects() -> list[str]:
-    """Return object keys that have bronze CDC enabled in objects.yml."""
-    with open(f"{CONFIG_ROOT}/objects.yml", "r") as f:
-        registry = yaml.safe_load(f)
-    return [
-        key for key, obj in registry["objects"].items()
-        if obj.get("bronze", {}).get("cdc", {}).get("enabled", False)
-    ]
-
-
-def load_cdc_config(object_key: str) -> dict:
-    """Load CDC layer config for a given object."""
-    config_path = f"{CONFIG_ROOT}/01_bronze/cdc/{object_key}.yml"
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
 
 def register_cdc_table(object_key: str):
     """Register a CDC table from YAML config using Auto CDC."""
-    config = load_cdc_config(object_key)
+    config = load_hop_config(CONFIG_ROOT, "01_bronze/cdc", object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -90,5 +73,5 @@ def register_cdc_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,CDC Tables
-for obj in load_objects():
+for obj in load_objects(CONFIG_ROOT, "bronze", "cdc"):
     register_cdc_table(obj)

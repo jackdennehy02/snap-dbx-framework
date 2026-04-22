@@ -6,31 +6,14 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
+# MAGIC %run ../../../framework/utils
+
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import yaml
 
 CONFIG_ROOT = spark.conf.get("ev_config_root")
 CATALOG     = spark.conf.get("catalog_bronze")
 SCHEMA      = spark.conf.get("schema_bronze")
-
-
-
-def load_objects() -> list[str]:
-    """Return object keys that have bronze raw enabled in objects.yml."""
-    with open(f"{CONFIG_ROOT}/objects.yml", "r") as f:
-        registry = yaml.safe_load(f)
-    return [
-        key for key, obj in registry["objects"].items()
-        if obj.get("bronze", {}).get("raw", {}).get("enabled", False)
-    ]
-
-
-def load_raw_config(object_key: str) -> dict:
-    """Load raw layer config for a given object."""
-    config_path = f"{CONFIG_ROOT}/01_bronze/raw/{object_key}.yml"
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
 
 
 # ── Source reader builders ──────────────────────────────────────────────────
@@ -96,7 +79,7 @@ def _validate_raw_config(object_key: str, ingestion_mode: str, merge_strategy: s
 
 def register_raw_table(object_key: str):
     """Register a dp.table for a raw source object based on its YAML config."""
-    config = load_raw_config(object_key)
+    config = load_hop_config(CONFIG_ROOT, "01_bronze/raw", object_key)
     source_type = config.get("source_type", "cloud_storage")
     conn = config.get("connection", {})
     ingestion_mode = config.get(
@@ -142,5 +125,5 @@ def register_raw_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Raw Tables
-for obj in load_objects():
+for obj in load_objects(CONFIG_ROOT, "bronze", "raw"):
     register_raw_table(obj)
