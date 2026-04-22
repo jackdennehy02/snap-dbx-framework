@@ -12,23 +12,23 @@ resources:
       name: snap-dbx-framework
       serverless: true
       configuration:
-        pipeline.ev_config_root:    ${var.config_root}
-        pipeline.ev_end_date:       "9999-12-31 23:59:59"
-        pipeline.ev_start_date:     "2000-01-01 00:00:00"
-        pipeline.ev_null_value:     "^^"
-        pipeline.ev_field_separator: "||"
-        pipeline.catalog_bronze:    snap_dbx
-        pipeline.schema_bronze:     01_bronze
-        pipeline.catalog_silver:    snap_dbx
-        pipeline.schema_silver:     02_silver
-        pipeline.catalog_gold:      snap_dbx
-        pipeline.schema_gold:       03_gold
+        ev_config_root:    ${var.config_root}
+        ev_end_date:       "9999-12-31 23:59:59"
+        ev_start_date:     "2000-01-01 00:00:00"
+        ev_null_value:     "^^"
+        ev_field_separator: "||"
+        catalog_bronze:    snap_dbx
+        schema_bronze:     01_bronze
+        catalog_silver:    snap_dbx
+        schema_silver:     02_silver
+        catalog_gold:      snap_dbx
+        schema_gold:       03_gold
       libraries:
         - notebook:
-            path: ./pipelines/01_bronze/raw/raw_pipeline.py
+            path: ./pipelines/01_bronze/raw/raw_py
         - notebook:
-            path: ./pipelines/01_bronze/cdc/cdc_pipeline.py
+            path: ./pipelines/01_bronze/cdc/cdc_py
         - notebook:
-            path: ./pipelines/02_silver/processed/processed_pipeline.py
+            path: ./pipelines/02_silver/processed/processed_py
         - notebook:
-            path: ./pipelines/02_silver/skey/skey_pipeline.py
+            path: ./pipelines/02_silver/skey/skey_py

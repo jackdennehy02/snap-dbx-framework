@@ -10,12 +10,12 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 import yaml
 
-CONFIG_ROOT      = spark.conf.get("pipeline.ev_config_root")
-CATALOG          = spark.conf.get("pipeline.catalog_silver")
-SCHEMA           = spark.conf.get("pipeline.schema_silver")
-SILVER_CATALOG   = spark.conf.get("pipeline.catalog_silver")
-SILVER_SCHEMA    = spark.conf.get("pipeline.schema_silver")
-_FIELD_SEPARATOR = spark.conf.get("pipeline.ev_field_separator")
+CONFIG_ROOT      = spark.conf.get("ev_config_root")
+CATALOG          = spark.conf.get("catalog_silver")
+SCHEMA           = spark.conf.get("schema_silver")
+SILVER_CATALOG   = spark.conf.get("catalog_silver")
+SILVER_SCHEMA    = spark.conf.get("schema_silver")
+_FIELD_SEPARATOR = spark.conf.get("ev_field_separator")
 
 # COMMAND ----------
 

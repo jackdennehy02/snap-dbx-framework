@@ -10,12 +10,12 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 import yaml
 
-CONFIG_ROOT    = spark.conf.get("pipeline.ev_config_root")
-CATALOG        = spark.conf.get("pipeline.catalog_silver")
-SCHEMA         = spark.conf.get("pipeline.schema_silver")
-BRONZE_CATALOG = spark.conf.get("pipeline.catalog_bronze")
-BRONZE_SCHEMA  = spark.conf.get("pipeline.schema_bronze")
-_EV_END_DATE   = spark.conf.get("pipeline.ev_end_date")
+CONFIG_ROOT    = spark.conf.get("ev_config_root")
+CATALOG        = spark.conf.get("catalog_silver")
+SCHEMA         = spark.conf.get("schema_silver")
+BRONZE_CATALOG = spark.conf.get("catalog_bronze")
+BRONZE_SCHEMA  = spark.conf.get("schema_bronze")
+_EV_END_DATE   = spark.conf.get("ev_end_date")
 
 # Source columns consumed by the framework — excluded from passthrough.
 _FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT", "__etl_loaded_at", "__source_updated_at"}

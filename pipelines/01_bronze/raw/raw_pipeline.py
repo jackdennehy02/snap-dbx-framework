@@ -10,9 +10,9 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 import yaml
 
-CONFIG_ROOT = spark.conf.get("pipeline.ev_config_root")
-CATALOG     = spark.conf.get("pipeline.catalog_bronze")
-SCHEMA      = spark.conf.get("pipeline.schema_bronze")
+CONFIG_ROOT = spark.conf.get("ev_config_root")
+CATALOG     = spark.conf.get("catalog_bronze")
+SCHEMA      = spark.conf.get("schema_bronze")
 
 
 
@@ -101,7 +101,7 @@ def register_raw_table(object_key: str):
     conn = config.get("connection", {})
     ingestion_mode = config.get(
         "ingestion_mode",
-        spark.conf.get("pipeline.ingestion_mode", "snapshot"),
+        spark.conf.get("ingestion_mode", "snapshot"),
     )
     merge_strategy = config.get("merge_strategy", "append")
 
