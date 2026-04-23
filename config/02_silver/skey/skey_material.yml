@@ -1,0 +1,20 @@
+source_object: processed_material
+
+# ── Target ──────────────────────────────────────────
+object_name: skey_material
+enabled: true
+catalog: dev_setl
+schema: 02_silver
+comment:                                 # Unity Catalog table COMMENT
+
+# ── Read / Write Behaviour ───────────────────────────
+write_mode: streaming_table
+read_mode: stream
+
+# ── SKEY Configuration ───────────────────────────────
+scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version
+
+business_key_columns:                    # required — natural key(s) from source
+  - material_key
+
+skey_column: material_skey

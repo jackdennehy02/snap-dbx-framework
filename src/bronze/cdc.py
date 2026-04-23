@@ -6,15 +6,18 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
-# MAGIC %run ../../tools/utils
+import sys
+sys.path.insert(0, '..')
+from utils import load_objects, load_hop_config
 
 from pyspark import pipelines as dp
 
-CONFIG_ROOT = spark.conf.get("ev_config_root")
-CATALOG     = spark.conf.get("catalog_cdc")
-SCHEMA      = spark.conf.get("schema_cdc")
-RAW_CATALOG = spark.conf.get("catalog_raw")
-RAW_SCHEMA  = spark.conf.get("schema_raw")
+CONFIG_ROOT  = spark.conf.get("ev_config_root")
+L01_CATALOG  = spark.conf.get("ev_l01_catalog")
+L01_SCHEMA   = spark.conf.get("ev_l01_schema")
+L02_NAME     = spark.conf.get("ev_l02_name")
+CATALOG      = spark.conf.get("ev_l02_catalog")
+SCHEMA       = spark.conf.get("ev_l02_schema")
 
 # Columns excluded from CDC target — Auto Loader internals only.
 # __etl_loaded_at and __source_updated_time pass through to silver.
@@ -25,7 +28,7 @@ _CDC_EXCLUDED_COLUMNS = ["_rescued_data"]
 
 def register_cdc_table(object_key: str):
     """Register a CDC table from YAML config using Auto CDC."""
-    config = load_hop_config(CONFIG_ROOT, "01_bronze/cdc", object_key)
+    config = load_hop_config(CONFIG_ROOT, f"01_bronze/{L02_NAME}", object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -51,7 +54,7 @@ def register_cdc_table(object_key: str):
 
     kwargs = dict(
         target=full_table_name,
-        source=f"{catalog}.{schema}.{source_object}",
+        source=f"{L01_CATALOG}.{L01_SCHEMA}.{source_object}",
         keys=keys,
         sequence_by=sequence_by,
         stored_as_scd_type=config.get("scd_type", 2),
@@ -75,5 +78,5 @@ def register_cdc_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,CDC Tables
-for obj in load_objects(CONFIG_ROOT, "bronze", "cdc"):
+for obj in load_objects(CONFIG_ROOT, "bronze", "l02"):
     register_cdc_table(obj)

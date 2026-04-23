@@ -1,89 +1,48 @@
-# Databricks notebook source
-# MAGIC %md
-# MAGIC # Config Generator
-# MAGIC Reads `objects.yml` and generates per-object YAML config files
-# MAGIC for each enabled, metadata-driven hop.
-# MAGIC
-# MAGIC Each layer has its own template in `config_templates/` — this
-# MAGIC script never hard-codes template content.
-# MAGIC
-# MAGIC **Idempotent** — existing files are never overwritten.
+"""
+Config generator — reads objects.yml and produces per-object YAML config files
+for each enabled, metadata-driven hop.
 
-# COMMAND ----------
+Catalog and schema defaults are read from databricks.yml for the given target,
+so there is no need to pass them explicitly.
 
-# MAGIC %md
-# MAGIC ## Parameters
+Usage:
+    python tools/yaml_generator.py
+    python tools/yaml_generator.py --target prod
+    python tools/yaml_generator.py --config-root config --objects-file objects.yml
+"""
 
-# COMMAND ----------
-
+import argparse
 import os
-
-dbutils.widgets.text("config_root",    "", "pipeline.ev_config_root value from databricks.yml")
-dbutils.widgets.text("objects_file",   "objects.yml", "Objects registry filename (relative to config/)")
-dbutils.widgets.text("catalog_raw",       "snap_dbx",  "catalog_raw")
-dbutils.widgets.text("schema_raw",        "01_bronze", "schema_raw")
-dbutils.widgets.text("catalog_cdc",       "snap_dbx",  "catalog_cdc")
-dbutils.widgets.text("schema_cdc",        "01_bronze", "schema_cdc")
-dbutils.widgets.text("catalog_processed", "snap_dbx",  "catalog_processed")
-dbutils.widgets.text("schema_processed",  "02_silver", "schema_processed")
-dbutils.widgets.text("catalog_skey",      "snap_dbx",  "catalog_skey")
-dbutils.widgets.text("schema_skey",       "02_silver", "schema_skey")
-
-CONFIG_ROOT  = dbutils.widgets.get("config_root")
-OBJECTS_FILE = dbutils.widgets.get("objects_file")
-
-PROJECT_ROOT = os.path.dirname(CONFIG_ROOT)
-TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "config_templates")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Imports & Setup
-
-# COMMAND ----------
-
 import re
+import yaml
+
 from pathlib import Path
 
-# COMMAND ----------
+# ── Constants ──────────────────────────────────────────────────────────────────
 
-# MAGIC %md
-# MAGIC ## Naming Convention & Folder Structure
+BUNDLE_ROOT = Path(__file__).parent.parent
 
-# COMMAND ----------
-
-# Maps (layer, sub_layer) -> ordered folder path under config root
-HOP_FOLDERS = {
-    ("bronze", "raw"):       "01_bronze/raw",
-    ("bronze", "cdc"):       "01_bronze/cdc",
-    ("silver", "processed"): "02_silver/processed",
-    ("silver", "skey"):      "02_silver/skey",
+# Parent folder per layer — matches the Unity Catalog schema names in databricks.yml.
+LAYER_FOLDERS = {
+    "bronze": "01_bronze",
+    "silver": "02_silver",
 }
 
-# Maps (layer, sub_layer) -> template filename in config_templates/
 TEMPLATE_MAP = {
-    ("bronze", "raw"):       "loading.yml",
-    ("bronze", "cdc"):       "bronze_cdc.yml",
-    ("silver", "processed"): "silver_processed.yml",
-    ("silver", "skey"):      "silver_skey.yml",
+    ("bronze", "l01"): "loading.yml",
+    ("bronze", "l02"): "bronze_cdc.yml",
+    ("silver", "l03"): "silver_processed.yml",
+    ("silver", "l04"): "silver_skey.yml",
 }
 
-# Default source object for each hop (what it reads from upstream)
-SOURCE_OBJECT_DEFAULTS = {
-    ("bronze", "cdc"):       "raw_{object}",
-    ("silver", "processed"): "cdc_{object}",
-    ("silver", "skey"):      "processed_{object}",
+# Maps each hop to its source hop and the fallback object_name pattern if the
+# source hop has no explicit object_name set.
+SOURCE_HOP_DEFAULTS = {
+    ("bronze", "l02"): (("bronze", "l01"), "{object}"),
+    ("silver", "l03"): (("bronze", "l02"), "{object}"),
+    ("silver", "l04"): (("silver", "l03"), "{object}"),
 }
 
-# Default catalog and schema per hop — sourced from pipeline config key-value pairs
-HOP_DEFAULTS = {
-    ("bronze", "raw"):       {"catalog": dbutils.widgets.get("catalog_raw"),       "schema": dbutils.widgets.get("schema_raw")},
-    ("bronze", "cdc"):       {"catalog": dbutils.widgets.get("catalog_cdc"),       "schema": dbutils.widgets.get("schema_cdc")},
-    ("silver", "processed"): {"catalog": dbutils.widgets.get("catalog_processed"), "schema": dbutils.widgets.get("schema_processed")},
-    ("silver", "skey"):      {"catalog": dbutils.widgets.get("catalog_skey"),      "schema": dbutils.widgets.get("schema_skey")},
-}
-
-# Connection section markers in the loading template
 CONNECTION_SECTION_MARKERS = {
     "cloud_storage":        "# ── cloud_storage",
     "jdbc":                 "# ── jdbc",
@@ -91,35 +50,59 @@ CONNECTION_SECTION_MARKERS = {
     "lakehouse_federation": "# ── lakehouse_federation",
 }
 
-# COMMAND ----------
+# ── databricks.yml parsing ─────────────────────────────────────────────────────
 
-# MAGIC %md
-# MAGIC ## Template Loading & Processing
+def load_hop_defaults(target: str) -> dict:
+    """
+    Read databricks.yml and return catalog/schema defaults per hop for the
+    given target. Resolves ${var.catalog} references using the target's
+    variable overrides.
+    """
+    config_path = BUNDLE_ROOT / "databricks.yml"
+    with open(config_path) as f:
+        bundle = yaml.safe_load(f)
 
-# COMMAND ----------
+    global_vars = bundle.get("variables", {})
+    target_vars = bundle.get("targets", {}).get(target, {}).get("variables", {})
+
+    catalog = (
+        target_vars.get("catalog")
+        or global_vars.get("catalog", {}).get("default", "")
+    )
+
+    pipelines = bundle.get("resources", {}).get("pipelines", {})
+    pipeline_config = next(iter(pipelines.values()), {}).get("configuration", {})
+
+    def resolve(value):
+        if not isinstance(value, str):
+            return str(value) if value is not None else ""
+        return value.replace("${var.catalog}", catalog)
+
+    return {
+        ("bronze", "l01"): {"catalog": catalog, "schema": resolve(pipeline_config.get("ev_l01_schema", "")), "name": pipeline_config.get("ev_l01_name", "")},
+        ("bronze", "l02"): {"catalog": catalog, "schema": resolve(pipeline_config.get("ev_l02_schema", "")), "name": pipeline_config.get("ev_l02_name", "")},
+        ("silver", "l03"): {"catalog": catalog, "schema": resolve(pipeline_config.get("ev_l03_schema", "")), "name": pipeline_config.get("ev_l03_name", "")},
+        ("silver", "l04"): {"catalog": catalog, "schema": resolve(pipeline_config.get("ev_l04_schema", "")), "name": pipeline_config.get("ev_l04_name", "")},
+    }
+
+# ── Template loading & processing ─────────────────────────────────────────────
 
 def load_template(template_dir: str, template_name: str) -> str:
-    """Read a template file from the config_templates directory."""
     path = Path(template_dir) / template_name
-    with open(path, "r") as f:
+    with open(path) as f:
         return f.read()
 
 
 def load_all_templates(template_dir: str) -> dict:
-    """Load all required templates once and return as a dict keyed by filename."""
     template_names = set(TEMPLATE_MAP.values())
     return {name: load_template(template_dir, name) for name in template_names}
 
 
 def strip_irrelevant_connections(template: str, source_type: str) -> str:
     """
-    Given the full loading template and a source_type, keep only the
-    matching connection block and remove all others.
+    Keep only the connection block matching source_type and remove all others.
     """
     lines = template.splitlines()
-    result = []
-
-    section_ranges = {}
     section_order = []
 
     for i, line in enumerate(lines):
@@ -129,11 +112,9 @@ def strip_irrelevant_connections(template: str, source_type: str) -> str:
                 section_order.append((stype, i))
                 break
 
+    section_ranges = {}
     for idx, (stype, start) in enumerate(section_order):
-        if idx + 1 < len(section_order):
-            end = section_order[idx + 1][1] - 1
-        else:
-            end = len(lines) - 1
+        end = section_order[idx + 1][1] - 1 if idx + 1 < len(section_order) else len(lines) - 1
         while end > start and lines[end].strip() == "":
             end -= 1
         section_ranges[stype] = (start, end)
@@ -141,17 +122,14 @@ def strip_irrelevant_connections(template: str, source_type: str) -> str:
     exclude_ranges = set()
     for stype, (start, end) in section_ranges.items():
         if stype != source_type:
-            actual_end = end
-            if end + 1 < len(lines) and lines[end + 1].strip() == "":
-                actual_end = end + 1
-            for i in range(start, actual_end + 1):
-                exclude_ranges.add(i)
+            actual_end = end + 1 if end + 1 < len(lines) and lines[end + 1].strip() == "" else end
+            exclude_ranges.update(range(start, actual_end + 1))
 
+    result = []
     for i, line in enumerate(lines):
         if i in exclude_ranges:
             continue
-        stripped = line.strip()
-        if "Populate the block matching your source_type" in stripped:
+        if "Populate the block matching your source_type" in line.strip():
             continue
         if source_type in section_ranges:
             keep_start, keep_end = section_ranges[source_type]
@@ -163,11 +141,9 @@ def strip_irrelevant_connections(template: str, source_type: str) -> str:
 
 
 def _uncomment_line(line: str) -> str:
-    """Uncomment a YAML line: '  # key: value' -> '  key: value'."""
     match = re.match(r'^(\s*)# (.+)$', line)
     if match:
-        indent = match.group(1)
-        content = match.group(2)
+        indent, content = match.group(1), match.group(2)
         if content.strip().startswith("──") or content.strip().startswith("streaming-only"):
             return line
         return f"{indent}{content}"
@@ -175,11 +151,6 @@ def _uncomment_line(line: str) -> str:
 
 
 def _substitute_fields(content: str, substitutions: dict) -> str:
-    """
-    For each key in substitutions, find the YAML line 'key:' or
-    'key:  # comment' and set the value. Only matches the first
-    occurrence of each key. Preserves inline comments when no value set.
-    """
     lines = content.splitlines()
     result = []
     matched_keys = set()
@@ -189,14 +160,10 @@ def _substitute_fields(content: str, substitutions: dict) -> str:
         for key, value in substitutions.items():
             if key in matched_keys:
                 continue
-            pattern = rf'^(\s*{re.escape(key)}:)\s*(#.*)?$'
-            match = re.match(pattern, line)
+            match = re.match(rf'^(\s*{re.escape(key)}:)\s*(#.*)?$', line)
             if match:
                 prefix = match.group(1)
-                if value:
-                    result.append(f"{prefix} {value}")
-                else:
-                    result.append(line)
+                result.append(f"{prefix} {value}" if value else line)
                 matched_keys.add(key)
                 replaced = True
                 break
@@ -206,23 +173,47 @@ def _substitute_fields(content: str, substitutions: dict) -> str:
     return "\n".join(result)
 
 
-def _resolve_source_object(object_key: str, layer: str, sub_layer: str, hop_config: dict) -> str:
-    """
-    Return the source_object for this hop. Uses hop_config override if set,
-    otherwise falls back to the convention defined in SOURCE_OBJECT_DEFAULTS.
-    Returns empty string for hops with no default (consolidation, gold).
+def _resolve_source_object(object_key: str, layer: str, sub_layer: str, obj_config: dict, hop_config: dict, hop_defaults: dict) -> str:
+    """Return the source object name for a hop.
+
+    Prefers an explicit source_object on the hop. Otherwise builds
+    {source_hop_name}_{source_hop_object_name} using the ev_lXX_name from
+    databricks.yml as the prefix.
     """
     if hop_config.get("source_object"):
         return hop_config["source_object"]
-    template = SOURCE_OBJECT_DEFAULTS.get((layer, sub_layer), "")
-    return template.replace("{object}", object_key)
+    entry = SOURCE_HOP_DEFAULTS.get((layer, sub_layer))
+    if not entry:
+        return ""
+    (src_layer, src_sub), fallback_pattern = entry
+    src_hop = (obj_config.get(src_layer) or {}).get(src_sub) or {}
+    src_object_name = src_hop.get("object_name") or fallback_pattern.replace("{object}", object_key)
+    src_name = hop_defaults.get((src_layer, src_sub), {}).get("name", "")
+    return f"{src_name}_{src_object_name}" if src_name else src_object_name
+
+
+_SECTION_HEADER = re.compile(r'^\s*# ── \w')
+
+def _strip_template_header(content: str) -> str:
+    """Remove the leading comment block (file path + description) from generated output.
+
+    Stops at the first section header (# ── Label ──) or the first real YAML line,
+    whichever comes first, so structural section dividers are preserved.
+    """
+    lines = content.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if _SECTION_HEADER.match(line):
+            break
+        if not line.strip() or line.strip().startswith('#'):
+            i += 1
+        else:
+            break
+    return "\n".join(lines[i:])
 
 
 def _inject_yaml_list(content: str, field_name: str, values: list) -> str:
-    """
-    Replace a YAML list field's commented-out placeholder lines with actual values.
-    No-ops if values is empty.
-    """
     if not values:
         return content
     lines = content.splitlines()
@@ -233,7 +224,6 @@ def _inject_yaml_list(content: str, field_name: str, values: list) -> str:
         if re.match(rf'^\s*{re.escape(field_name)}:\s*(#.*)?$', line):
             result.append(line)
             i += 1
-            # Skip commented placeholder lines (e.g. "  # - col_a")
             while i < len(lines) and re.match(r'^\s*#\s*-\s*', lines[i]):
                 i += 1
             indent = re.match(r'^(\s*)', line).group(1) + "  "
@@ -244,34 +234,29 @@ def _inject_yaml_list(content: str, field_name: str, values: list) -> str:
             i += 1
     return "\n".join(result)
 
-# COMMAND ----------
+# ── Populate functions ─────────────────────────────────────────────────────────
 
-# MAGIC %md
-# MAGIC ## Populate Functions (one per template type)
-
-# COMMAND ----------
-
-def populate_loading_template(template, object_key, hop_config, top_level):
-    """Bronze raw — loading template."""
+def populate_loading_template(template, object_key, hop_config, top_level, hop_defaults):
     source_type = top_level.get("source_type") or ""
-    object_name = hop_config.get("object_name") or f"tbl_a_raw_{object_key}"
+    hop_name = hop_defaults.get(("bronze", "l01"), {}).get("name", "")
+    object_name = f"{hop_name}_{hop_config.get('object_name') or f'raw_{object_key}'}" if hop_name else hop_config.get("object_name") or f"raw_{object_key}"
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     content = strip_irrelevant_connections(template, source_type)
     content = _substitute_fields(content, {
         "source_type": source_type,
         "object_name": object_name,
-        "catalog": top_level["catalog"],
-        "schema":  top_level["schema"],
-        "enabled": str(enabled).lower(),
+        "catalog":     top_level["catalog"],
+        "schema":      top_level["schema"],
+        "enabled":     str(enabled).lower(),
     })
-    return content
+    return _inject_yaml_list(content, "primary_key_columns", top_level.get("primary_key_columns", []))
 
 
-def populate_cdc_template(template, object_key, hop_config, top_level):
-    """Bronze CDC — Auto CDC template."""
-    object_name = hop_config.get("object_name") or f"tbl_b_cdc_{object_key}"
-    source_object = _resolve_source_object(object_key, "bronze", "cdc", hop_config)
+def populate_cdc_template(template, object_key, hop_config, top_level, obj_config, hop_defaults):
+    hop_name = hop_defaults.get(("bronze", "l02"), {}).get("name", "")
+    object_name = f"{hop_name}_{hop_config.get('object_name') or f'cdc_{object_key}'}" if hop_name else hop_config.get("object_name") or f"cdc_{object_key}"
+    source_object = _resolve_source_object(object_key, "bronze", "l02", obj_config, hop_config, hop_defaults)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     content = _substitute_fields(template, {
@@ -284,10 +269,10 @@ def populate_cdc_template(template, object_key, hop_config, top_level):
     return _inject_yaml_list(content, "keys", top_level.get("primary_key_columns", []))
 
 
-def populate_processed_template(template, object_key, hop_config, top_level):
-    """Silver processed — typecasting and basic cleansing."""
-    object_name = hop_config.get("object_name") or f"tbl_a_proc_{object_key}"
-    source_object = _resolve_source_object(object_key, "silver", "processed", hop_config)
+def populate_processed_template(template, object_key, hop_config, top_level, obj_config, hop_defaults):
+    hop_name = hop_defaults.get(("silver", "l03"), {}).get("name", "")
+    object_name = f"{hop_name}_{hop_config.get('object_name') or f'processed_{object_key}'}" if hop_name else hop_config.get("object_name") or f"processed_{object_key}"
+    source_object = _resolve_source_object(object_key, "silver", "l03", obj_config, hop_config, hop_defaults)
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     content = _substitute_fields(template, {
@@ -300,26 +285,26 @@ def populate_processed_template(template, object_key, hop_config, top_level):
     return _inject_yaml_list(content, "primary_key_columns", top_level.get("primary_key_columns", []))
 
 
-def populate_skey_template(template, object_key, hop_config, top_level):
-    """Silver SKEY — surrogate key mapping."""
-    object_name = hop_config.get("object_name") or f"skey_{object_key}"
-    source_object = _resolve_source_object(object_key, "silver", "skey", hop_config)
+def populate_skey_template(template, object_key, hop_config, top_level, obj_config, hop_defaults):
+    hop_name = hop_defaults.get(("silver", "l04"), {}).get("name", "")
+    base_name = hop_config.get("object_name") or f"skey_{object_key}"
+    object_name = f"{hop_name}_{base_name}" if hop_name else base_name
+    source_object = _resolve_source_object(object_key, "silver", "l04", obj_config, hop_config, hop_defaults)
     skey_column = hop_config.get("skey_column") or f"{object_key}_skey"
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
     content = _substitute_fields(template, {
-        "source_object": source_object,
-        "object_name":   object_name,
-        "skey_column":   skey_column,
-        "enabled":       str(enabled).lower(),
-        "catalog":       top_level["catalog"],
-        "schema":        top_level["schema"],
+        "source_object":  source_object,
+        "object_name":    object_name,
+        "skey_column":    skey_column,
+        "enabled":        str(enabled).lower(),
+        "catalog":        top_level["catalog"],
+        "schema":         top_level["schema"],
     })
     return _inject_yaml_list(content, "business_key_columns", top_level.get("primary_key_columns", []))
 
 
 def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config, top_level):
-    """Standard hop template — fallback for unrecognised hops."""
     object_name = hop_config.get("object_name") or ""
     enabled = hop_config.get("enabled") if hop_config.get("enabled") is not None else True
 
@@ -333,76 +318,60 @@ def populate_hop_template(template, _object_key, _layer, _sub_layer, hop_config,
     return _inject_yaml_list(content, "primary_key_columns", top_level.get("primary_key_columns", []))
 
 
-def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level):
-    """Route to the correct populate function based on layer/sub_layer."""
-    layer_defaults = HOP_DEFAULTS.get((layer, sub_layer), {})
+def _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level, hop_defaults, obj_config):
+    layer_defaults = hop_defaults.get((layer, sub_layer), {})
     top_level = {
         **top_level,
         "catalog": hop_config.get("catalog") or layer_defaults.get("catalog", ""),
         "schema":  hop_config.get("schema")  or layer_defaults.get("schema",  ""),
     }
-    if layer == "bronze" and sub_layer == "raw":
-        return populate_loading_template(template, object_key, hop_config, top_level)
-    elif layer == "bronze" and sub_layer == "cdc":
-        return populate_cdc_template(template, object_key, hop_config, top_level)
-    elif layer == "silver" and sub_layer == "processed":
-        return populate_processed_template(template, object_key, hop_config, top_level)
-    elif layer == "silver" and sub_layer == "skey":
-        return populate_skey_template(template, object_key, hop_config, top_level)
+    if layer == "bronze" and sub_layer == "l01":
+        return populate_loading_template(template, object_key, hop_config, top_level, hop_defaults)
+    elif layer == "bronze" and sub_layer == "l02":
+        return populate_cdc_template(template, object_key, hop_config, top_level, obj_config, hop_defaults)
+    elif layer == "silver" and sub_layer == "l03":
+        return populate_processed_template(template, object_key, hop_config, top_level, obj_config, hop_defaults)
+    elif layer == "silver" and sub_layer == "l04":
+        return populate_skey_template(template, object_key, hop_config, top_level, obj_config, hop_defaults)
     else:
         return populate_hop_template(template, object_key, layer, sub_layer, hop_config, top_level)
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Generator Logic
-
-# COMMAND ----------
+# ── Generator ──────────────────────────────────────────────────────────────────
 
 def load_objects(config_root: str, objects_file: str) -> dict:
-    """Load and parse the objects.yml registry."""
     objects_path = Path(config_root) / objects_file
-    with open(objects_path, "r") as f:
+    with open(objects_path) as f:
         data = yaml.safe_load(f)
     return data.get("objects", {})
 
 
-def ensure_directory(path: Path):
-    """Create directory if it doesn't exist."""
-    path.mkdir(parents=True, exist_ok=True)
-
-
-def generate_configs(config_root: str, template_dir: str, objects_file: str):
-    """
-    Main generator. For each object in objects.yml, creates hop folders
-    and YAML config files where enabled and metadata_driven are true.
-    Skips any file that already exists (idempotent).
-    """
+def generate_configs(config_root: str, objects_file: str, hop_defaults: dict):
     root = Path(config_root)
+    template_dir = root / "config_templates"
     objects = load_objects(config_root, objects_file)
 
     if not objects:
-        print("⚠️  No objects found in objects.yml — nothing to generate.")
+        print("No objects found in objects.yml — nothing to generate.")
         return
 
-    templates = load_all_templates(template_dir)
+    templates = load_all_templates(str(template_dir))
 
-    print(f"📂 Config root:    {config_root}")
-    print(f"📄 Templates from: {template_dir}")
-    print(f"📋 Objects file:   {objects_file}")
+    print(f"Config root:  {config_root}")
+    print(f"Objects file: {objects_file}")
+    print()
 
     created = []
     skipped = []
 
     for object_key, obj_config in objects.items():
         if not obj_config:
-            print(f"⚠️  Object '{object_key}' has no configuration — skipping.")
+            print(f"  WARNING: '{object_key}' has no configuration — skipping.")
             continue
 
         top_level = {
-            "object_alias":         obj_config.get("object_alias"),
-            "source_type":          obj_config.get("source_type"),
-            "primary_key_columns":  obj_config.get("primary_key_columns") or [],
+            "object_alias":        obj_config.get("object_alias"),
+            "source_type":         obj_config.get("source_type"),
+            "primary_key_columns": obj_config.get("primary_key_columns") or [],
         }
 
         for layer in ("bronze", "silver"):
@@ -419,59 +388,71 @@ def generate_configs(config_root: str, template_dir: str, objects_file: str):
                     continue
 
                 folder_key = (layer, sub_layer)
-
-                if folder_key in REQUIRES_EXPLICIT_OBJECT_NAME and not hop_config.get("object_name"):
-                    print(f"⚠️  '{object_key}' ({layer}/{sub_layer}) has no object_name set — skipping. Set it explicitly in objects.yml.")
-                    continue
-
-                folder_rel = HOP_FOLDERS.get(folder_key)
-                if not folder_rel:
-                    print(f"⚠️  Unknown hop ({layer}, {sub_layer}) for '{object_key}' — skipping.")
-                    continue
-
                 template_name = TEMPLATE_MAP.get(folder_key)
+
+                hop_name = hop_defaults.get(folder_key, {}).get("name")
+                layer_folder = LAYER_FOLDERS.get(layer)
+
+                if not hop_name or not layer_folder:
+                    print(f"  WARNING: Unknown hop ({layer}, {sub_layer}) for '{object_key}' — skipping.")
+                    continue
                 if not template_name:
-                    print(f"⚠️  No template mapped for ({layer}, {sub_layer}) — skipping.")
+                    print(f"  WARNING: No template mapped for ({layer}, {sub_layer}) — skipping.")
                     continue
 
-                folder_path = root / folder_rel
-                file_path = folder_path / f"{object_key}.yml"
+                folder_path = root / layer_folder / hop_name
+                file_path = folder_path / f"{hop_name}_{object_key}.yml"
 
-                ensure_directory(folder_path)
+                folder_path.mkdir(parents=True, exist_ok=True)
 
                 if file_path.exists():
                     skipped.append(str(file_path))
                     continue
 
                 template = templates[template_name]
-                content = _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level)
+                content = _dispatch_populate(template, object_key, layer, sub_layer, hop_config, top_level, hop_defaults, obj_config)
+                content = _strip_template_header(content)
 
                 with open(file_path, "w") as f:
                     f.write(content)
 
                 created.append(str(file_path))
 
-    print(f"\n{'='*60}")
-    print(f"Config generation complete")
-    print(f"{'='*60}")
-    print(f"  Created: {len(created)}")
-    print(f"  Skipped (already exist): {len(skipped)}")
+    print(f"Created: {len(created)}  |  Skipped (already exist): {len(skipped)}")
 
     if created:
-        print(f"\n📄 New files:")
+        print("\nNew files:")
         for fp in created:
-            print(f"    + {fp}")
+            print(f"  + {fp}")
 
     if skipped:
-        print(f"\n⏭️  Skipped files:")
+        print("\nSkipped:")
         for fp in skipped:
-            print(f"    ~ {fp}")
+            print(f"  ~ {fp}")
 
-# COMMAND ----------
+# ── Entry point ────────────────────────────────────────────────────────────────
 
-# MAGIC %md
-# MAGIC ## Run
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate per-object config files from objects.yml.")
+    parser.add_argument(
+        "--target",
+        default="dev",
+        help="Databricks target from databricks.yml (default: dev)",
+    )
+    parser.add_argument(
+        "--config-root",
+        default=str(BUNDLE_ROOT / "config"),
+        help="Path to the config directory (default: <bundle_root>/config)",
+    )
+    parser.add_argument(
+        "--objects-file",
+        default="objects.yml",
+        help="Objects registry filename relative to config-root (default: objects.yml)",
+    )
+    return parser.parse_args()
 
-# COMMAND ----------
 
-generate_configs(CONFIG_ROOT, TEMPLATE_DIR, OBJECTS_FILE)
+if __name__ == "__main__":
+    args = parse_args()
+    hop_defaults = load_hop_defaults(args.target)
+    generate_configs(args.config_root, args.objects_file, hop_defaults)

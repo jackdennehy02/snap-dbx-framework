@@ -6,16 +6,19 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
-# MAGIC %run ../../tools/utils
+import sys
+sys.path.insert(0, '..')
+from utils import load_objects, load_hop_config
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
 CONFIG_ROOT  = spark.conf.get("ev_config_root")
-CATALOG      = spark.conf.get("catalog_processed")
-SCHEMA       = spark.conf.get("schema_processed")
-CDC_CATALOG  = spark.conf.get("catalog_cdc")
-CDC_SCHEMA   = spark.conf.get("schema_cdc")
+L02_CATALOG  = spark.conf.get("ev_l02_catalog")
+L02_SCHEMA   = spark.conf.get("ev_l02_schema")
+L03_NAME     = spark.conf.get("ev_l03_name")
+CATALOG      = spark.conf.get("ev_l03_catalog")
+SCHEMA       = spark.conf.get("ev_l03_schema")
 _EV_END_DATE = spark.conf.get("ev_end_date")
 
 # Source columns consumed by the framework — excluded from passthrough.
@@ -99,7 +102,7 @@ def _apply_leading_columns(col_pairs: list, leading: list) -> list:
 
 def register_processed_table(object_key: str):
     """Register a silver processed table from YAML config."""
-    config = load_hop_config(CONFIG_ROOT, "02_silver/processed", object_key)
+    config = load_hop_config(CONFIG_ROOT, f"02_silver/{L03_NAME}", object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -113,7 +116,7 @@ def register_processed_table(object_key: str):
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{CDC_CATALOG}.{CDC_SCHEMA}.{source_object}")
+        df = spark.readStream.table(f"{L02_CATALOG}.{L02_SCHEMA}.{source_object}")
 
         framework = _framework_transforms(df.columns)
         user = _user_transforms(columns_config)
@@ -132,7 +135,7 @@ def register_processed_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Processed Tables
-for obj in load_objects(CONFIG_ROOT, "silver", "processed"):
+for obj in load_objects(CONFIG_ROOT, "silver", "l03"):
     register_processed_table(obj)
 
 

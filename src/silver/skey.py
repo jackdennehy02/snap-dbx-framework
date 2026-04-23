@@ -6,17 +6,20 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
-# MAGIC %run ../../tools/utils
+import sys
+sys.path.insert(0, '..')
+from utils import load_objects, load_hop_config
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
-CONFIG_ROOT       = spark.conf.get("ev_config_root")
-CATALOG           = spark.conf.get("catalog_skey")
-SCHEMA            = spark.conf.get("schema_skey")
-PROCESSED_CATALOG = spark.conf.get("catalog_processed")
-PROCESSED_SCHEMA  = spark.conf.get("schema_processed")
-_FIELD_SEPARATOR  = spark.conf.get("ev_field_separator")
+CONFIG_ROOT      = spark.conf.get("ev_config_root")
+L03_CATALOG      = spark.conf.get("ev_l03_catalog")
+L03_SCHEMA       = spark.conf.get("ev_l03_schema")
+L04_NAME         = spark.conf.get("ev_l04_name")
+CATALOG          = spark.conf.get("ev_l04_catalog")
+SCHEMA           = spark.conf.get("ev_l04_schema")
+_FIELD_SEPARATOR = spark.conf.get("ev_field_separator")
 
 
 # ── Column builders ──────────────────────────────────────────────────────────
@@ -36,7 +39,7 @@ def _skey_expr(business_key_columns: list[str], scd_type: int) -> F.Column:
 
 def register_skey_table(object_key: str):
     """Register a silver skey table from YAML config."""
-    config = load_hop_config(CONFIG_ROOT, "02_silver/skey", object_key)
+    config = load_hop_config(CONFIG_ROOT, f"02_silver/{L04_NAME}", object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -48,7 +51,7 @@ def register_skey_table(object_key: str):
 
     @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{PROCESSED_CATALOG}.{PROCESSED_SCHEMA}.{source_object}")
+        df = spark.readStream.table(f"{L03_CATALOG}.{L03_SCHEMA}.{source_object}")
 
         if scd_type == 2 and "__etl_effective_from" not in df.columns:
             raise ValueError(
@@ -75,5 +78,5 @@ def register_skey_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,SKEY Tables
-for obj in load_objects(CONFIG_ROOT, "silver", "skey"):
+for obj in load_objects(CONFIG_ROOT, "silver", "l04"):
     register_skey_table(obj)

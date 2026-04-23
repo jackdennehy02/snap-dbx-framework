@@ -2,177 +2,94 @@
 # ──────────────────────────────────────────────────────
 # Master object registry. One entry per object.
 #
-# The generator reads this file alongside hop_defaults.yml
-# to produce the per-layer config files for each object.
-# Only fields that differ from hop_defaults.yml are set —
-# anything left blank is inherited from the hop default.
+# The generator reads this file and produces per-layer config files
+# for each enabled, metadata-driven hop. Catalog and schema defaults
+# come from databricks.yml — only set them here to override.
+#
+# Naming conventions:
+#   Bronze raw:        tbl_raw_{object}  /  vw_raw_{object}
+#   Bronze CDC:        tbl_cdc_{object}  /  vw_cdc_{object}
+#   Silver processed:  tbl_proc_{object}
+#   Silver SKEY:       tbl_skey_{object}
+#   Silver CONS:       tbl_cons_{object}
+#   Gold dimensional:  tbl_dim_{object}
+#   Gold data mart:    tbl_mart_{object}
+#
+# Override object_name at any sub-layer to deviate from the convention.
 # ──────────────────────────────────────────────────────
 
 objects:
 
-  # ── Dimensions ─────────────────────────────────────
-
-  customer:
-    source_type: cloud_storage
-    primary_key_columns:
-      - customer_key
-    bronze:
-      raw:
-        enabled: true
-        metadata_driven: true
-        object_name: raw_customer
-      cdc:
-        enabled: true
-        metadata_driven: true
-        object_name: cdc_customer
-    silver:
-      processed:
-        enabled: true
-        metadata_driven: true
-        object_name: processed_customer
-      skey:
-        enabled: true
-        metadata_driven: true
-        object_name: skey_customer
-    gold:
-      consolidation:
-        enabled: true
-        metadata_driven: true
-        object_name: cons_customer
-      dimensional:
-        enabled: true
-        metadata_driven: true
-        object_name: dim_customer
-
+  # ── Object Name ────────────────────────────────────
+  # Replace with the logical object name (e.g. customer, sales).
   material:
-    source_type: cloud_storage
+
+    object_alias: material                         # optional display name
     primary_key_columns:
-      - material_key
+    - material_key                   # natural/composite keys from source
+      
+    source_type: cloud_storage                          # cloud_storage | jdbc | kafka | lakehouse_federation
+
+    # ── Bronze ─────────────────────────────────────────
+    # Two hops: l01 (raw ingest) and l02 (persisted history via Auto CDC).
+    # Disable any hop by setting enabled: false.
     bronze:
-      raw:
+
+      # l01 — append-only ingest from source; produces config/01_bronze/raw/{object}.yml
+      l01:
+        enabled: true                           # true | false — false skips generation entirely
+        metadata_driven: true                  # true = driven by YAML; false means manual Databricks work
+        catalog:                           # override hop default
+        schema:                            # override hop default
+        object_name: material                      # will automatically become tbl_raw_{object}
+
+      # l02 — persisted history via Auto CDC; produces config/01_bronze/cdc/{object}.yml
+      l02:
         enabled: true
-        metadata_driven: true
-        object_name: raw_material
-      cdc:
-        enabled: true
-        metadata_driven: true
-        object_name: cdc_material
+        metadata_driven: true 
+        catalog: 
+        schema:
+        object_name: material                      # default: tbl_cdc_{object}
+
+    # ── Silver ─────────────────────────────────────────
+    # Transformation layer. Each hop produces a separate config file.
+    # Disable any hop by setting enabled: false.
     silver:
-      processed:
+
+      # l03 — typecasting and basic cleansing only; reads from bronze CDC stream
+      # produces config/02_silver/processed/{object}.yml
+      # no joins, no business logic, no skey resolution — if it needs a join, it belongs in consolidation
+      l03:
         enabled: true
         metadata_driven: true
-        object_name: processed_material
-      skey:
+        catalog:
+        schema:
+        object_name: material                       # default: tbl_proc_{object}
+
+      # l04 — surrogate key mapping; produces config/02_silver/skey/{object}.yml
+      l04:
         enabled: true
         metadata_driven: true
-        object_name: skey_material
-    gold:
+        catalog:
+        schema:
+        object_name: material                       # default: tbl_skey_{object}
+
+      # consolidation — joins, skey resolution, business rules; produces config/silver/consolidation/{object}.yml
       consolidation:
-        enabled: true
-        metadata_driven: true
-        object_name: cons_material
-      dimensional:
-        enabled: true
-        metadata_driven: true
-        object_name: dim_material
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:                       # default: tbl_cons_{object}
 
-
-  plant:
-    source_type: cloud_storage
-    primary_key_columns:
-      - plant_key
-    bronze:
-      raw:
-        enabled: true
-        metadata_driven: true
-        object_name: raw_plant
-      cdc:
-        enabled: true
-        metadata_driven: true
-        object_name: cdc_plant
-    silver:
-      processed:
-        enabled: true
-        metadata_driven: true
-        object_name: processed_plant
-      skey:
-        enabled: true
-        metadata_driven: true
-        object_name: skey_plant
+    # ── Gold ───────────────────────────────────────────
+    # Consumption layer. Each sub-section produces a separate config file.
     gold:
-      consolidation:
-        enabled: true
-        metadata_driven: true
-        object_name: cons_plant
+
+      # dimensional — SCD-2 dimensions and fact tables; produces config/gold/dimensional/{object}.yml
       dimensional:
-        enabled: true
-        metadata_driven: true
-        object_name: dim_plant
-
-
-  # ── Facts ───────────────────────────────────────────
-
-  sales:
-    source_type: cloud_storage
-    primary_key_columns:
-      - order_id
-    bronze:
-      raw:
-        enabled: true
-        metadata_driven: true
-        object_name: raw_sales
-      cdc:
-        enabled: true
-        metadata_driven: true
-        object_name: cdc_sales
-    silver:
-      processed:
-        enabled: true
-        metadata_driven: true
-        object_name: processed_sales
-      skey:
-        enabled: true
-        metadata_driven: true
-        object_name: skey_sales
-    gold:
-      consolidation:
-        enabled: true
-        metadata_driven: false           # uses custom_sql — joins to dimension skey tables
-        object_name: cons_sales
-      dimensional:
-        enabled: true
-        metadata_driven: true
-        object_name: fact_sales
-
-
-  # ── Reference ───────────────────────────────────────
-
-  component_bom:
-    source_type: cloud_storage
-    primary_key_columns:
-      - component_key
-    bronze:
-      raw:
-        enabled: true
-        metadata_driven: true
-        object_name: raw_component_bom
-      cdc:
-        enabled: true
-        metadata_driven: true
-        object_name: cdc_component_bom
-    silver:
-      processed:
-        enabled: true
-        metadata_driven: true
-        object_name: processed_component_bom
-      skey:
-        enabled: true
-        metadata_driven: true
-        object_name: skey_component_bom
-    gold:
-      consolidation:
-        enabled: true
-        object_name: cons_component_bom
-      dimensional:
-        enabled: false
-        object_name: dim_component_bom
+        enabled:
+        metadata_driven:
+        catalog:
+        schema:
+        object_name:                       # default: tbl_dim_{object}

@@ -6,14 +6,17 @@
 # COMMAND ----------
 
 # DBTITLE 1,Loaders
-# MAGIC %run ../../tools/utils
+import sys
+sys.path.insert(0, '..')
+from utils import load_objects, load_hop_config
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
 CONFIG_ROOT = spark.conf.get("ev_config_root")
-CATALOG     = spark.conf.get("catalog_raw")
-SCHEMA      = spark.conf.get("schema_raw")
+L01_NAME    = spark.conf.get("ev_l01_name")
+CATALOG     = spark.conf.get("ev_l01_catalog")
+SCHEMA      = spark.conf.get("ev_l01_schema")
 
 
 # ── Source reader builders ──────────────────────────────────────────────────
@@ -79,7 +82,7 @@ def _validate_raw_config(object_key: str, ingestion_mode: str, merge_strategy: s
 
 def register_raw_table(object_key: str):
     """Register a dp.table for a raw source object based on its YAML config."""
-    config = load_hop_config(CONFIG_ROOT, "01_bronze/raw", object_key)
+    config = load_hop_config(CONFIG_ROOT, f"01_bronze/{L01_NAME}", object_key)
     source_type = config.get("source_type", "cloud_storage")
     conn = config.get("connection", {})
     ingestion_mode = config.get(
@@ -125,5 +128,5 @@ def register_raw_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Raw Tables
-for obj in load_objects(CONFIG_ROOT, "bronze", "raw"):
+for obj in load_objects(CONFIG_ROOT, "bronze", "l01"):
     register_raw_table(obj)

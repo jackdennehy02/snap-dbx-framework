@@ -1,52 +1,95 @@
 bundle:
   name: snap-dbx-framework
+  engine: direct
+
+sync:
+  exclude:
+    - tools/
+    - config/config_templates/
+    - "*.md"
+
+workspace:
+  # Deploys under your Databricks user home
+  root_path: ~/.bundle/${bundle.name}
+
+targets:
+  dev:
+    default: true
+    workspace:
+      profile: dennehy.jack01@gmail.com
+    variables:
+      catalog: dev_setl
 
 variables:
   catalog:
     description: "Unity Catalog catalog name."
-    default: snap_dbx
+
   config_root:
-    description: "Workspace path to the framework config directory (ev_config_root in framework.yml)."
-    default: /Workspace/Users/dennehy.jack01@gmail.com/snap-dbx-framework/config
+    description: "Framework config directory (relative to bundle root)."
+    default: config
 
 resources:
+  # -------------------------
+  # Unity Catalog schemas
+  # -------------------------
   schemas:
     bronze:
       catalog_name: ${var.catalog}
       name: 01_bronze
+
     silver:
       catalog_name: ${var.catalog}
       name: 02_silver
+
     gold:
       catalog_name: ${var.catalog}
       name: 03_gold
 
+  # -------------------------
+  # DLT pipeline (serverless)
+  # -------------------------
   pipelines:
     snap_dbx_framework:
-      name: snap-dbx-framework
+      name: snap-dbx-framework-pipeline
+
+      # REQUIRED for serverless pipelines
       serverless: true
+      catalog: ${var.catalog}
+      target: 01_bronze
+
       configuration:
-        ev_config_root:     ${var.config_root}
-        ev_end_date:        "9999-12-31 23:59:59"
+        ev_config_root:     ${workspace.root_path}/files/${var.config_root}
+
         ev_start_date:      "2000-01-01 00:00:00"
+        ev_end_date:        "9999-12-31 23:59:59"
         ev_null_value:      "^^"
         ev_field_separator: "||"
-        catalog_raw:        ${var.catalog}
-        schema_raw:         01_bronze
-        catalog_cdc:        ${var.catalog}
-        schema_cdc:         01_bronze
-        catalog_processed:  ${var.catalog}
-        schema_processed:   02_silver
-        catalog_skey:       ${var.catalog}
-        schema_skey:        02_silver
-        catalog_gold:       ${var.catalog}
-        schema_gold:        03_gold
+
+        ev_l01_name:    raw
+        ev_l01_catalog: ${var.catalog}
+        ev_l01_schema:  01_bronze
+
+        ev_l02_name:    cdc
+        ev_l02_catalog: ${var.catalog}
+        ev_l02_schema:  01_bronze
+
+        ev_l03_name:    processed
+        ev_l03_catalog: ${var.catalog}
+        ev_l03_schema:  02_silver
+
+        ev_l04_name:    skey
+        ev_l04_catalog: ${var.catalog}
+        ev_l04_schema:  02_silver
+
+        catalog_gold:   ${var.catalog}
+        schema_gold:    03_gold
+
       libraries:
         - notebook:
-            path: ./src/bronze/raw.py
+            path: src/bronze/raw.py
         - notebook:
-            path: ./src/bronze/cdc.py
+            path: src/bronze/cdc.py
         - notebook:
-            path: ./src/silver/processed.py
+            path: src/silver/processed.py
         - notebook:
-            path: ./src/silver/skey.py
+            path: src/silver/skey.py

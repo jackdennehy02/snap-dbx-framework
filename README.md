@@ -41,42 +41,102 @@ Source Files (CSV / cloud storage)
 ```
 snap-dbx-framework/
   config/
-    framework.yml          # Centralised catalogs, schemas, and environment variables
-    objects.yml            # Master object registry — drives config file generation
+    objects.yml              # Master object registry — edit this to add objects
+    config_templates/        # Template files used by the generator (not deployed)
     01_bronze/
-      raw/                 # Generated per-object bronze raw configs
-      cdc/                 # Generated per-object bronze CDC configs
+      raw/                   # Generated per-object bronze raw configs
+      cdc/                   # Generated per-object bronze CDC configs
     02_silver/
-      processed/           # Generated per-object processed configs
-      skey/                # Generated per-object SKEY configs
-    03_gold/
-      consolidation/       # Generated per-object CONS configs
-      dimensional/         # Generated per-object dimension/fact configs
-  config_templates/        # Template files used by the generator
-  framework/
-    YAML_Generator.py      # Generates per-layer config files from objects.yml
-  pipelines/
-    01_bronze/
-      raw/                 # Bronze raw pipeline
-      cdc/                 # Bronze CDC pipeline
-    02_silver/
-      processed/           # Silver processed pipeline
-      skey/                # Silver SKEY pipeline
-    03_gold/               # Gold pipelines (in development)
-  architecture.md          # Full architecture reference
+      processed/             # Generated per-object processed configs
+      skey/                  # Generated per-object SKEY configs
+  src/
+    bronze/
+      raw.py                 # Bronze raw DLT notebook
+      cdc.py                 # Bronze CDC DLT notebook
+    silver/
+      processed.py           # Silver processed DLT notebook
+      skey.py                # Silver SKEY DLT notebook
+  tools/
+    yaml_generator.py        # Generates per-layer config files from objects.yml
+    unity_catalog_manager.py # Admin utility — manage Unity Catalog resources
+    drop_all.py              # Admin utility — tear down pipeline objects
+    utils.py                 # Shared helpers for pipeline notebooks
+  databricks.yml             # Bundle config — catalog, schemas, pipeline definition
 ```
+
+## Adding Objects
+
+The framework is config-driven. Adding a new object to the pipeline requires two steps.
+
+### 1. Register the object in `config/objects.yml`
+
+Open `config/objects.yml` and add an entry for the new object. The template shows all available fields — at minimum you need `source_type`, `primary_key_columns`, and `enabled: true` on each hop you want to activate.
+
+```yaml
+objects:
+
+  customer:
+    source_type: cloud_storage
+    primary_key_columns:
+      - customer_key
+    bronze:
+      raw:
+        enabled: true
+        metadata_driven: true
+      cdc:
+        enabled: true
+        metadata_driven: true
+    silver:
+      processed:
+        enabled: true
+        metadata_driven: true
+      skey:
+        enabled: true
+        metadata_driven: true
+```
+
+Object names default to the convention (`raw_{object}`, `cdc_{object}`, etc.). Override `object_name` at any hop to deviate.
+
+### 2. Generate the per-layer config files
+
+```bash
+pip install pyyaml   # first time only
+python tools/yaml_generator.py
+```
+
+This reads `objects.yml` and writes a YAML config file for each enabled, metadata-driven hop into the appropriate subfolder under `config/`. The generator is idempotent — it never overwrites existing files, so customisations to generated configs are safe.
+
+To generate for a specific target (e.g. prod, where catalog names differ):
+
+```bash
+python tools/yaml_generator.py --target prod
+```
+
+Commit the generated files alongside the updated `objects.yml`. Both are version-controlled — the git history is the record of exactly what was deployed and when.
+
+### 3. Deploy
+
+```bash
+databricks bundle deploy --target dev
+```
+
+See [DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md) for the full setup and deployment steps.
 
 ## Config
 
-**`config/framework.yml`** is the single source of truth for catalog names, schema names, and pipeline environment variables. All pipelines load from it at runtime — nothing is hardcoded in pipeline code.
+**`config/objects.yml`** is the starting point for any change. It defines every object, which layers it flows through, and whether a layer is metadata-driven. The generator produces all per-layer configs from it.
 
-**`config/objects.yml`** is the master object registry. It defines every object, which layers it flows through, and whether it's metadata-driven. The generator reads it to produce all per-layer config files.
+**`databricks.yml`** is the single source of truth for catalog names, schema names, and pipeline environment variables. The generator reads it to resolve catalog/schema defaults — nothing is hardcoded in config files or pipeline code.
 
-See `architecture.md` for the full config schema and field reference.
+Per-layer config files (in `config/01_bronze/`, `config/02_silver/`) are committed to git and deployed as part of the bundle. The pipeline reads them at runtime via the `ev_config_root` parameter.
+
+Gold layer configs (CONS, Dimensional) are written manually — they typically contain `custom_sql` that spans multiple tables and can't be generated from a simple object registry entry.
+
+See [architecture.md](architecture.md) for the full config schema and field reference.
 
 ## Naming Conventions
 
-All names use `lower_snake_case`. No `tbl_` prefix.
+All names use `lower_snake_case`.
 
 | Layer | Prefix | Example |
 |---|---|---|

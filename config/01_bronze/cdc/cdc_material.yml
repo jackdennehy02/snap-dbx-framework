@@ -1,33 +1,18 @@
-# config/01_bronze/01b_cdc/{object_name}.yml
-# ──────────────────────────────────────────────────────
-# Bronze CDC — Databricks Auto CDC (APPLY CHANGES INTO)
-#
-# Databricks handles all column pass-through automatically.
-# No column mappings are defined here — only the Auto CDC
-# control fields that drive change detection.
-#
-# Databricks system columns generated at this layer:
-#   __START_AT  — when this version became effective
-#   __END_AT    — when superseded (NULL if current)
-# These are renamed to __etl_ convention in silver processed.
-# ──────────────────────────────────────────────────────
-
-# ── Source ──────────────────────────────────────────
-source_object: raw_plant
+source_object: raw_material
 
 # ── Target ──────────────────────────────────────────
-object_name: cdc_plant
+object_name: cdc_material
 enabled: true
-catalog: snap_dbx
+catalog: dev_setl
 schema: 01_bronze
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  - plant_key
+  - material_key
 
 # ── CDC Control ──────────────────────────────────────
-sequence_by: __source_updated_at                                # required — column used to order changes (e.g. __file_modification_time)
+sequence_by: "__source_updated_at"                            # required — column used to order changes (e.g. __source_updated_at)
 scd_type: 2                              # 1 = overwrite in place (no history)
                                          # 2 = full version history (default)
 

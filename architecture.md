@@ -43,20 +43,17 @@ Source Files (CSV / cloud storage)
 ## Config Structure
 
 ```
-config/framework.yml                        ← centralised catalogs, schemas, and environment variables
 config/objects.yml                          ← master object registry; drives file generation
-config_templates/                           ← template files used by the generator
-  └── config/01_bronze/raw/{object}.yml     ← bronze raw ingestion config per object
-  └── config/01_bronze/cdc/{object}.yml     ← bronze CDC config per object
-  └── config/02_silver/processed/{object}.yml
-  └── config/02_silver/skey/{object}.yml
-  └── config/03_gold/consolidation/{object}.yml
-  └── config/03_gold/dimensional/{object}.yml
+config/config_templates/                    ← template files used by the generator
+  └── loading.yml                           ← bronze raw ingestion config template
+  └── bronze_cdc.yml                        ← bronze CDC config template
+  └── silver_processed.yml
+  └── silver_skey.yml
 ```
 
 `objects.yml` is the orchestrator. It defines every object in the pipeline, what layers it flows through, and the table name at each layer. A generator reads it to produce the per-layer YAML files. Blank fields inherit from the hop default.
 
-`framework.yml` is the single source of truth for catalog names, schema names, and pipeline environment variables. All pipelines load from it — nothing is hardcoded in pipeline code.
+Catalog names, schema names, and pipeline environment variables are defined in `databricks.yml` under `variables` and `resources.pipelines[].configuration`. Nothing is hardcoded in pipeline code or config files.
 
 ---
 
@@ -247,7 +244,7 @@ read_mode: snapshot
 | `__etl_effective_to` | — | `__END_AT` | yes | — | yes | yes | inherited |
 | `__etl_is_current` | — | — | yes | — | — | yes | inherited |
 
-> `__etl_effective_to` is never `NULL` from silver onwards — `NULL` is replaced with `ev_end_date` (`9999-12-31 23:59:59`) from `framework.yml`.
+> `__etl_effective_to` is never `NULL` from silver onwards — `NULL` is replaced with `ev_end_date` (`9999-12-31 23:59:59`) defined in `databricks.yml`.
 
 ---
 
@@ -266,26 +263,30 @@ All names: `lower_snake_case`. No `tbl_` prefix. No layer-letter sub-prefixes.
 
 ---
 
-## Framework Config (`framework.yml`)
+## Framework Config (`databricks.yml`)
 
-Pipeline-wide constants defined in `config/framework.yml`. All pipelines load from this file at runtime — values are never hardcoded in pipeline code.
+Pipeline-wide constants are defined in `databricks.yml` under `variables` and `resources.pipelines[].configuration`. Values are never hardcoded in pipeline code or config files — pipelines read them at runtime via `spark.conf.get()`.
 
 ```yaml
-catalogs:
-  bronze: snap_dbx
-  silver: snap_dbx
-  gold: snap_dbx
+variables:
+  catalog:                        # set per target (dev, prod etc.)
 
-schemas:
-  bronze: 01_bronze
-  silver: 02_silver
-  gold: 03_gold
-
-environment:
-  ev_end_date: "9999-12-31 23:59:59"
-  ev_start_date: "2000-01-01 00:00:00"
-  ev_null_value: "^^"
-  ev_field_separator: "||"
+resources:
+  pipelines:
+    snap_dbx_framework:
+      configuration:
+        ev_l01_catalog: ${var.catalog}
+        ev_l01_schema:  01_bronze
+        ev_l02_catalog: ${var.catalog}
+        ev_l02_schema:  01_bronze
+        ev_l03_catalog: ${var.catalog}
+        ev_l03_schema:  02_silver
+        ev_l04_catalog: ${var.catalog}
+        ev_l04_schema:  02_silver
+        ev_end_date:    "9999-12-31 23:59:59"
+        ev_start_date:  "2000-01-01 00:00:00"
+        ev_null_value:  "^^"
+        ev_field_separator: "||"
 ```
 
 ---

@@ -1,30 +1,22 @@
-# config/loading/{object_name}.yaml
-# ──────────────────────────────────────────────────────
-# One file per object. Source-type determines which
-# connection fields apply.
-# Fields left blank inherit from hop_defaults.yaml.
-# ──────────────────────────────────────────────────────
-
 source_type: cloud_storage
 
 # ── Object ──────────────────────────────────────────
-object_name: raw_sales
+object_name: raw_material
 object_category:                         # reference | transactional | dimension | fact
 enabled: true
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Target ──────────────────────────────────────────
-catalog: snap_dbx                                # override hop default
-schema: 01_bronze                                 # override hop default
+catalog: dev_setl
+schema: 01_bronze
 
 # ── Behaviour ───────────────────────────────────────
 ingestion_mode: streaming                         # snapshot | streaming — inherits from hop_defaults if omitted
-merge_strategy: append                          # overwrite | append | upsert — inherits from hop_defaults if omitted
+merge_strategy: upsert                         # overwrite | append | upsert — inherits from hop_defaults if omitted
 filter:                                  # SQL WHERE applied at read time
 data_items:                              # column list for SELECT; null = SELECT *
 primary_key_columns:                     # required if merge_strategy: upsert
-  # - col_a
-  # - col_b
+  - material_key
 
 # ── Connection ──────────────────────────────────────
 
@@ -32,7 +24,7 @@ connection:
 
   # ── cloud_storage ────────────────────────────────
   source_connection:                     # external location name in Unity Catalog
-  cloud_storage_path: "/Volumes/snap_dbx/01_bronze/landing/sales"                    # abfss://container@account.dfs.core.windows.net/path/
+  cloud_storage_path: "/Volumes/mock_cloud_source/mock_cloud_source_schema/source/material/"                   # abfss://container@account.dfs.core.windows.net/path/
   cloud_storage_type: csv                   # csv | parquet | json | avro
   header: true                                # boolean — csv only
   delimiter: ","                            # csv only
@@ -42,3 +34,25 @@ connection:
   cloud_ingestion_mode:                  # directory_listing | file_notifications
   cloud_schema_location:                 # autoloader schema checkpoint path — required if streaming
   cloud_archive_path:                    # move files here after ingestion — optional
+
+  # ── jdbc ─────────────────────────────────────────
+  # url:
+  # driver:
+  # dbtable:                             # table name or subquery
+  # fetchsize:
+  # numPartitions:
+  # partitionColumn:
+  # lowerBound:
+  # upperBound:
+
+  # ── kafka ─────────────────────────────────────────
+  # bootstrap_servers:
+  # topic:
+  # starting_offsets:                    # earliest | latest | json offset map
+  # schema_registry_url:
+
+  # ── lakehouse_federation ──────────────────────────
+  # connection_name:                     # Unity Catalog connection name
+  # remote_catalog:
+  # remote_schema:
+  # remote_table:

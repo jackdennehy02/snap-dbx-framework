@@ -2,10 +2,9 @@
 # ──────────────────────────────────────────────────────
 # Master object registry. One entry per object.
 #
-# The generator reads this file alongside hop_defaults.yml
-# to produce the per-layer config files for each object.
-# Only set fields that differ from hop_defaults.yml — anything
-# left blank is inherited from the hop default.
+# The generator reads this file and produces per-layer config files
+# for each enabled, metadata-driven hop. Catalog and schema defaults
+# come from databricks.yml — only set them here to override.
 #
 # Naming conventions:
 #   Bronze raw:        tbl_raw_{object}  /  vw_raw_{object}
@@ -26,24 +25,26 @@ objects:
   <object_name>:
 
     object_alias:                          # optional display name
+    primary_key_columns:                   # natural/composite keys from source
+      # - col_a
+      # - col_b
     source_type:                           # cloud_storage | jdbc | kafka | lakehouse_federation
 
     # ── Bronze ─────────────────────────────────────────
-    # Two sub-layers: raw ingest and CDC.
-    # Disable any sub-section by setting enabled: false.
+    # Two hops: l01 (raw ingest) and l02 (persisted history via Auto CDC).
+    # Disable any hop by setting enabled: false.
     bronze:
 
-      # raw — append-only ingest from source; produces config/loading/{object}.yml
-      raw:
+      # l01 — append-only ingest from source; produces config/01_bronze/raw/{object}.yml
+      l01:
         enabled:                           # true | false — false skips generation entirely
         metadata_driven:                   # true = driven by YAML; false means manual Databricks work
         catalog:                           # override hop default
         schema:                            # override hop default
         object_name:                       # default: tbl_raw_{object}
 
-      # cdc — full table comparison via vw_raw_ and vw_cdc_ views; produces config/bronze/cdc/{object}.yml
-      # N/C/D records inserted into tbl_cdc_; identical records filtered out
-      cdc:
+      # l02 — persisted history via Auto CDC; produces config/01_bronze/cdc/{object}.yml
+      l02:
         enabled:
         metadata_driven:
         catalog:
@@ -51,22 +52,22 @@ objects:
         object_name:                       # default: tbl_cdc_{object}
 
     # ── Silver ─────────────────────────────────────────
-    # Transformation layer. Each sub-section produces a separate config file.
-    # Disable any sub-section by setting enabled: false.
+    # Transformation layer. Each hop produces a separate config file.
+    # Disable any hop by setting enabled: false.
     silver:
 
-      # processed — typecasting and basic cleansing only; reads from bronze CDC stream
-      # produces config/silver/processed/{object}.yml
+      # l03 — typecasting and basic cleansing only; reads from bronze CDC stream
+      # produces config/02_silver/processed/{object}.yml
       # no joins, no business logic, no skey resolution — if it needs a join, it belongs in consolidation
-      processed:
+      l03:
         enabled:
         metadata_driven:
         catalog:
         schema:
         object_name:                       # default: tbl_proc_{object}
 
-      # skey — surrogate key mapping; produces config/silver/skey/{object}.yml
-      skey:
+      # l04 — surrogate key mapping; produces config/02_silver/skey/{object}.yml
+      l04:
         enabled:
         metadata_driven:
         catalog:
@@ -92,11 +93,3 @@ objects:
         catalog:
         schema:
         object_name:                       # default: tbl_dim_{object}
-
-      # data_mart — aggregations and calculations; produces config/gold/data_mart/{object}.yml
-      data_mart:
-        enabled:
-        metadata_driven:
-        catalog:
-        schema:
-        object_name:                       # default: tbl_mart_{object}
