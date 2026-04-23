@@ -1,7 +1,7 @@
-source_object: processed_material
+source_object: processed_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name: skey_material
+object_name: skey_component_bom
 enabled: true
 catalog: dev_setl
 schema: 02_silver
@@ -15,6 +15,7 @@ read_mode: snapshot                      # snapshot = full table scan — requir
 scd_type: 2
 
 business_key_columns:                    # required — natural key(s) from source
-  - material_key
+  - parent_material_key
+  - component_key
 
-skey_column: material_skey
+skey_column: component_bom_skey

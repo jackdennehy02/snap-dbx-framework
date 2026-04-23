@@ -1,7 +1,7 @@
-source_object: cdc_material
+source_object: cdc_component_bom
 
 # ── Target ──────────────────────────────────────────
-object_name: processed_material
+object_name: processed_component_bom
 enabled: true
 catalog: dev_setl
 schema: 02_silver
@@ -13,7 +13,8 @@ read_mode: snapshot                      # snapshot = full table scan — requir
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml
-  - material_key
+  - parent_material_key
+  - component_key
 
 # ── Column Ordering ──────────────────────────────────
 leading_columns:                         # optional — columns to place first; everything else follows in source order

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python tools/yaml_generator.py)",
+      "Bash(git checkout *)",
+      "Bash(python resources/config_generator.py)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python -c \"import databricks.bundles; import yaml; print\\('OK'\\)\")",
+      "Bash(git rm *)"
+    ]
+  }
+}

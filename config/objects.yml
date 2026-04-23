@@ -1,95 +1,68 @@
 # config/objects.yml
 # ──────────────────────────────────────────────────────
-# Master object registry. One entry per object.
+# Source system registry.
 #
-# The generator reads this file and produces per-layer config files
-# for each enabled, metadata-driven hop. Catalog and schema defaults
-# come from databricks.yml — only set them here to override.
+# Each source system defines connection details, hop defaults, and objects.
+# Objects need only a name and primary key — everything else is inherited.
 #
-# Naming conventions:
-#   Bronze raw:        tbl_raw_{object}  /  vw_raw_{object}
-#   Bronze CDC:        tbl_cdc_{object}  /  vw_cdc_{object}
-#   Silver processed:  tbl_proc_{object}
-#   Silver SKEY:       tbl_skey_{object}
-#   Silver CONS:       tbl_cons_{object}
-#   Gold dimensional:  tbl_dim_{object}
-#   Gold data mart:    tbl_mart_{object}
+# Connection paths support the {object} placeholder, which is replaced with
+# the object name at generation time.
 #
-# Override object_name at any sub-layer to deviate from the convention.
+# Object syntax:
+#   object_name: primary_key_column           # single key
+#   object_name: [key_col_1, key_col_2]       # composite key
+#
+# facts default to scd_type: 1 at the skey layer.
+# dimensions default to scd_type: 2.
 # ──────────────────────────────────────────────────────
 
-objects:
+source_systems:
 
-  # ── Object Name ────────────────────────────────────
-  # Replace with the logical object name (e.g. customer, sales).
-  material:
+  sap_erp:
 
-    object_alias: material                         # optional display name
-    primary_key_columns:
-    - material_key                   # natural/composite keys from source
-      
-    source_type: cloud_storage                          # cloud_storage | jdbc | kafka | lakehouse_federation
+    source_type: cloud_storage
 
-    # ── Bronze ─────────────────────────────────────────
-    # Two hops: l01 (raw ingest) and l02 (persisted history via Auto CDC).
-    # Disable any hop by setting enabled: false.
-    bronze:
+    connection:
+      source_connection:
+      cloud_storage_path: /Volumes/mock_cloud_source/mock_cloud_source_schema/source/{object}/
+      cloud_storage_type: csv
+      header: true
+      delimiter: ","
+      null_value:
+      cloud_ingestion_mode:
+      cloud_schema_location:
+      cloud_archive_path:
 
-      # l01 — append-only ingest from source; produces config/01_bronze/raw/{object}.yml
-      l01:
-        enabled: true                           # true | false — false skips generation entirely
-        metadata_driven: true                  # true = driven by YAML; false means manual Databricks work
-        catalog:                           # override hop default
-        schema:                            # override hop default
-        object_name: material                      # will automatically become tbl_raw_{object}
+    defaults:
+      bronze:
+        l01:
+          enabled: true
+          metadata_driven: true
+          ingestion_mode: streaming
+          merge_strategy: append
+        l02:
+          enabled: true
+          metadata_driven: true
+          sequence_by: __source_updated_at
+          ignore_null_updates: false
+      silver:
+        l03:
+          enabled: true
+          metadata_driven: true
+          write_mode: materialized_view
+          read_mode: snapshot
+        l04:
+          enabled: true
+          metadata_driven: true
+          write_mode: materialized_view
+          read_mode: snapshot
 
-      # l02 — persisted history via Auto CDC; produces config/01_bronze/cdc/{object}.yml
-      l02:
-        enabled: true
-        metadata_driven: true 
-        catalog: 
-        schema:
-        object_name: material                      # default: tbl_cdc_{object}
+    dimensions:
+      material: material_key
+      customer: customer_key
+      plant: plant_key
+      component_bom: [parent_material_key, component_key]
 
-    # ── Silver ─────────────────────────────────────────
-    # Transformation layer. Each hop produces a separate config file.
-    # Disable any hop by setting enabled: false.
-    silver:
-
-      # l03 — typecasting and basic cleansing only; reads from bronze CDC stream
-      # produces config/02_silver/processed/{object}.yml
-      # no joins, no business logic, no skey resolution — if it needs a join, it belongs in consolidation
-      l03:
-        enabled: true
-        metadata_driven: true
-        catalog:
-        schema:
-        object_name: material                       # default: tbl_proc_{object}
-
-      # l04 — surrogate key mapping; produces config/02_silver/skey/{object}.yml
-      l04:
-        enabled: true
-        metadata_driven: true
-        catalog:
-        schema:
-        object_name: material                       # default: tbl_skey_{object}
-
-      # consolidation — joins, skey resolution, business rules; produces config/silver/consolidation/{object}.yml
-      consolidation:
-        enabled:
-        metadata_driven:
-        catalog:
-        schema:
-        object_name:                       # default: tbl_cons_{object}
-
-    # ── Gold ───────────────────────────────────────────
-    # Consumption layer. Each sub-section produces a separate config file.
-    gold:
-
-      # dimensional — SCD-2 dimensions and fact tables; produces config/gold/dimensional/{object}.yml
-      dimensional:
-        enabled:
-        metadata_driven:
-        catalog:
-        schema:
-        object_name:                       # default: tbl_dim_{object}
+    facts:
+      sales: [plant_key, material_key, customer_key]
+  

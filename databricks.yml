@@ -2,6 +2,11 @@ bundle:
   name: snap-dbx-framework
   engine: direct
 
+python:
+  venv_path: .venv
+  resources:
+    - 'resources:load_resources'
+
 sync:
   exclude:
     - tools/

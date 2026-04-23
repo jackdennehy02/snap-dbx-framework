@@ -58,9 +58,6 @@ snap-dbx-framework/
       skey.py                # Silver SKEY DLT notebook
   tools/
     yaml_generator.py        # Generates per-layer config files from objects.yml
-    unity_catalog_manager.py # Admin utility — manage Unity Catalog resources
-    drop_all.py              # Admin utility — tear down pipeline objects
-    utils.py                 # Shared helpers for pipeline notebooks
   databricks.yml             # Bundle config — catalog, schemas, pipeline definition
 ```
 

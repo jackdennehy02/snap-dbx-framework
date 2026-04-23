@@ -1,7 +1,7 @@
-source_object: raw_material
+source_object: raw_plant
 
 # ── Target ──────────────────────────────────────────
-object_name: cdc_material
+object_name: cdc_plant
 enabled: true
 catalog: dev_setl
 schema: 01_bronze
@@ -9,7 +9,7 @@ comment:                                 # Unity Catalog table COMMENT
 
 # ── Keys ─────────────────────────────────────────────
 keys:                                    # required — business key column(s); populated from objects.yml
-  - material_key
+  - plant_key
 
 # ── CDC Control ──────────────────────────────────────
 sequence_by: __source_updated_at
