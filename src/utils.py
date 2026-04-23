@@ -9,10 +9,16 @@ def load_yaml(path: str) -> dict:
 def load_objects(config_root: str, layer: str, sub_layer: str) -> list[str]:
     """Return object keys with the given layer/sub_layer enabled in objects.yml."""
     registry = load_yaml(f"{config_root}/objects.yml")
-    return [
-        key for key, obj in registry["objects"].items()
-        if obj.get(layer, {}).get(sub_layer, {}).get("enabled", False)
-    ]
+    result = []
+    for source in registry.get("source_systems", {}).values():
+        if not source:
+            continue
+        hop_config = source.get("defaults", {}).get(layer, {}).get(sub_layer, {})
+        if not hop_config or not hop_config.get("enabled", False):
+            continue
+        for objects in (source.get("dimensions") or {}, source.get("facts") or {}):
+            result.extend(objects.keys())
+    return result
 
 
 def load_hop_config(config_root: str, layer_path: str, object_key: str) -> dict:

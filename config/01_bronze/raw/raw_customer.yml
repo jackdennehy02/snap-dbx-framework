@@ -1,7 +1,7 @@
 source_type: cloud_storage
 
 # ── Object ──────────────────────────────────────────
-object_name: raw_material
+object_name: raw_customer
 object_category:                         # reference | transactional | dimension | fact
 enabled: true
 comment:                                 # Unity Catalog table COMMENT
@@ -16,7 +16,7 @@ merge_strategy: append
 filter:                                  # SQL WHERE applied at read time
 data_items:                              # column list for SELECT; null = SELECT *
 primary_key_columns:                     # required if merge_strategy: upsert
-  - material_key
+  - customer_key
 
 # ── Connection ──────────────────────────────────────
 
@@ -24,7 +24,7 @@ connection:
 
   # ── cloud_storage ────────────────────────────────
   source_connection:                     # external location name in Unity Catalog
-  cloud_storage_path: /Volumes/mock_cloud_source/mock_cloud_source_schema/source/material/
+  cloud_storage_path: /Volumes/mock_cloud_source/mock_cloud_source_schema/source/customer/
   cloud_storage_type: csv
   header: true
   delimiter: ","

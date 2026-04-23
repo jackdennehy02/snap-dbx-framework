@@ -1,7 +1,7 @@
-source_object: processed_material
+source_object: processed_sales
 
 # ── Target ──────────────────────────────────────────
-object_name: skey_material
+object_name: skey_sales
 enabled: true
 catalog: dev_setl
 schema: 02_silver
@@ -12,9 +12,11 @@ write_mode: materialized_view            # materialized_view (required — sourc
 read_mode: snapshot                      # snapshot = full table scan — required when write_mode is materialized_view | stream (streaming_table only)
 
 # ── SKEY Configuration ───────────────────────────────
-scd_type: 2
+scd_type: 1
 
 business_key_columns:                    # required — natural key(s) from source
+  - plant_key
   - material_key
+  - customer_key
 
-skey_column: material_skey
+skey_column: sales_skey

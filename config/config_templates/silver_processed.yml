@@ -2,7 +2,9 @@
 # ──────────────────────────────────────────────────────
 # Silver Processed — typecasting and basic cleansing only.
 #
-# Reads from the bronze CDC stream.
+# Reads from the bronze CDC table as a materialized view (snapshot).
+# streaming_table is not valid here — APPLY CHANGES INTO writes via MERGE,
+# which Delta streaming cannot read (DELTA_SOURCE_TABLE_IGNORE_CHANGES).
 # Scope: CAST, TRIM, NULLIF, date parsing.
 # No joins. No business logic. No skey resolution.
 # If it needs a join, it belongs in consolidation.
@@ -22,8 +24,8 @@ schema:                                  # override hop default
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table              # streaming_table = incremental DLT stream | materialized_view = recomputed on each refresh
-read_mode: stream                        # stream = read from CDC stream (standard) | snapshot = full table scan (batch/reference)
+write_mode: materialized_view            # materialized_view (required — CDC source uses MERGE) | streaming_table (only if sourcing from append-only table)
+read_mode: snapshot                      # snapshot = full table scan — required when write_mode is materialized_view | stream (streaming_table only)
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml

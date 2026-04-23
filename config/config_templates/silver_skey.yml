@@ -2,7 +2,8 @@
 # ──────────────────────────────────────────────────────
 # Silver SKEY — surrogate key mapping.
 #
-# Reads from the silver processed stream.
+# Reads from the silver processed table as a materialized view (snapshot).
+# Processed is a materialized view; streaming tables cannot read from MV sources.
 # Insert-only — once a key is assigned it never changes.
 #
 # scd_type controls the hash input:
@@ -27,11 +28,11 @@ schema:                                  # override hop default
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table
-read_mode: stream
+write_mode: materialized_view            # materialized_view (required — source is a MV) | streaming_table (only if sourcing from append-only table)
+read_mode: snapshot                      # snapshot = full table scan — required when write_mode is materialized_view | stream (streaming_table only)
 
 # ── SKEY Configuration ───────────────────────────────
-scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version
+scd_type:                                # 1 = one skey per business key | 2 = one skey per version (default: 1 for facts, 2 for dimensions)
 
 business_key_columns:                    # required — natural key(s) from source
   # - col_a

@@ -120,7 +120,9 @@ Processed has two responsibilities:
 1. **Rename Databricks Auto CDC columns** to the framework's `__etl_` naming convention
 2. **Typecast and basic cleansing** — `CAST`, `TRIM`, `NULLIF`, date parsing
 
-It reads from the bronze CDC stream. No joins, no business logic, no surrogate key resolution — if it needs a join it belongs in CONS.
+It reads from the bronze CDC table. No joins, no business logic, no surrogate key resolution — if it needs a join it belongs in CONS.
+
+**Why `materialized_view`, not `streaming_table`:** Bronze CDC is maintained by `APPLY CHANGES INTO`, which writes via MERGE. Delta streaming tables cannot read from a source that has MERGE commits — attempting it raises `DELTA_SOURCE_TABLE_IGNORE_CHANGES`. A materialized view performs a full recompute on each refresh, bypassing this constraint entirely.
 
 The framework automatically applies these columns — they do not appear in the per-object YAML config:
 
@@ -139,8 +141,8 @@ Only business columns (typecasting, cleansing) go in the YAML config. Everything
 ```yaml
 object_name: processed_{object}
 source_object: cdc_{object}
-write_mode: streaming_table
-read_mode: stream
+write_mode: materialized_view
+read_mode: snapshot
 
 columns:
   - source_col: raw_amount
@@ -174,11 +176,13 @@ Output columns:
 
 CONS reads from processed for business attributes and joins SKEY at the end to resolve surrogate keys. SKEY carries no business columns — only the mapping.
 
+**Why `materialized_view`:** SKEY sources from processed, which is itself a materialized view. Streaming tables cannot read from a materialized view source.
+
 ```yaml
 object_name: skey_{object}
 source_object: processed_{object}
-write_mode: streaming_table
-read_mode: stream
+write_mode: materialized_view
+read_mode: snapshot
 
 scd_type: 2
 business_key_columns:

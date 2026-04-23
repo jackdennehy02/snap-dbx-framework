@@ -25,6 +25,7 @@ objects:
   <object_name>:
 
     object_alias:                          # optional display name
+    object_type:                           # fact | dimension (optional — sets scd_type default: fact → 1, dimension → 2)
     primary_key_columns:                   # natural/composite keys from source
       # - col_a
       # - col_b
