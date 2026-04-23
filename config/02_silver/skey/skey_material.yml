@@ -8,8 +8,8 @@ schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table
-read_mode: stream
+write_mode: materialized_view            # source is a materialized_view — streaming tables cannot read from MVs
+read_mode: snapshot
 
 # ── SKEY Configuration ───────────────────────────────
 scd_type: 2                              # 1 = one skey per business key | 2 = one skey per version

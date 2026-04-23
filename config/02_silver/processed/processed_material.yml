@@ -8,8 +8,8 @@ schema: 02_silver
 comment:                                 # Unity Catalog table COMMENT
 
 # ── Read / Write Behaviour ───────────────────────────
-write_mode: streaming_table              # streaming_table = incremental DLT stream | materialized_view = recomputed on each refresh
-read_mode: stream                        # stream = read from CDC stream (standard) | snapshot = full table scan (batch/reference)
+write_mode: materialized_view            # materialized_view (required when source is a CDC table — APPLY CHANGES INTO uses MERGE, which streaming tables cannot read) | streaming_table (only valid if sourcing from an append-only table)
+read_mode: snapshot                      # snapshot = full table scan — required when write_mode is materialized_view | stream = incremental read (streaming_table only)
 
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml

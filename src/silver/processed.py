@@ -110,13 +110,20 @@ def register_processed_table(object_key: str):
     source_object = config["source_object"]
     columns_config = config.get("columns") or []
     leading_columns = config.get("leading_columns") or []
+    write_mode = config.get("write_mode", "materialized_view")
+    read_mode = config.get("read_mode", "snapshot")
 
     user_source_cols = {c["source_col"] for c in columns_config if c.get("source_col")}
     skip = _FRAMEWORK_SOURCE_COLS | _DROP_COLS | user_source_cols
 
-    @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
+    decorator = dp.materialized_view if write_mode == "materialized_view" else dp.table
+
+    @decorator(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{L02_CATALOG}.{L02_SCHEMA}.{source_object}")
+        if read_mode == "snapshot":
+            df = spark.read.table(f"{L02_CATALOG}.{L02_SCHEMA}.{source_object}")
+        else:
+            df = spark.readStream.table(f"{L02_CATALOG}.{L02_SCHEMA}.{source_object}")
 
         framework = _framework_transforms(df.columns)
         user = _user_transforms(columns_config)
