@@ -48,10 +48,17 @@ def register_skey_table(object_key: str):
     scd_type = config.get("scd_type", 1)
     business_key_columns = config["business_key_columns"]
     skey_column = config.get("skey_column", f"{object_key}_skey")
+    write_mode = config.get("write_mode", "materialized_view")
+    read_mode = config.get("read_mode", "snapshot")
 
-    @dp.table(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
+    decorator = dp.materialized_view if write_mode == "materialized_view" else dp.table
+
+    @decorator(name=f"{catalog}.{schema}.{table_name}", comment=config.get("comment"))
     def _load():
-        df = spark.readStream.table(f"{L03_CATALOG}.{L03_SCHEMA}.{source_object}")
+        if read_mode == "snapshot":
+            df = spark.read.table(f"{L03_CATALOG}.{L03_SCHEMA}.{source_object}")
+        else:
+            df = spark.readStream.table(f"{L03_CATALOG}.{L03_SCHEMA}.{source_object}")
 
         if scd_type == 2 and "__etl_effective_from" not in df.columns:
             raise ValueError(
