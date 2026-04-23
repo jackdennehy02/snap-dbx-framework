@@ -12,7 +12,7 @@ schema: 01_bronze
 
 # ── Behaviour ───────────────────────────────────────
 ingestion_mode: streaming                         # snapshot | streaming — inherits from hop_defaults if omitted
-merge_strategy: upsert                         # overwrite | append | upsert — inherits from hop_defaults if omitted
+merge_strategy: append                        # overwrite | append | upsert — inherits from hop_defaults if omitted
 filter:                                  # SQL WHERE applied at read time
 data_items:                              # column list for SELECT; null = SELECT *
 primary_key_columns:                     # required if merge_strategy: upsert
