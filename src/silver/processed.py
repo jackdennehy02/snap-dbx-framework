@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Silver Processed Pipeline
-# MAGIC Applies framework audit column renames, user-defined transforms, and passthrough.
+# MAGIC Applies framework audit column renames, surrogate key generation, user-defined transforms, and passthrough.
 
 # COMMAND ----------
 
@@ -13,13 +13,15 @@ from utils import load_objects, load_hop_config
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
-CONFIG_ROOT  = spark.conf.get("ev_config_root")
-L02_CATALOG  = spark.conf.get("ev_l02_catalog")
-L02_SCHEMA   = spark.conf.get("ev_l02_schema")
-L03_NAME     = spark.conf.get("ev_l03_name")
-CATALOG      = spark.conf.get("ev_l03_catalog")
-SCHEMA       = spark.conf.get("ev_l03_schema")
-_EV_END_DATE = spark.conf.get("ev_end_date")
+CONFIG_ROOT      = spark.conf.get("ev_config_root")
+L02_CATALOG      = spark.conf.get("ev_l02_catalog")
+L02_SCHEMA       = spark.conf.get("ev_l02_schema")
+L03_LOCATION     = spark.conf.get("ev_l03_location")
+L03_NAME         = spark.conf.get("ev_l03_name")
+CATALOG          = spark.conf.get("ev_l03_catalog")
+SCHEMA           = spark.conf.get("ev_l03_schema")
+_EV_END_DATE     = spark.conf.get("ev_end_date")
+_FIELD_SEPARATOR = spark.conf.get("ev_field_separator")
 
 # Source columns consumed by the framework — excluded from passthrough.
 _FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT", "__etl_loaded_at", "__source_updated_at"}
@@ -28,8 +30,6 @@ _FRAMEWORK_SOURCE_COLS = {"__START_AT", "__END_AT", "__etl_loaded_at", "__source
 _DROP_COLS = {"_rescued_data"}
 
 # COMMAND ----------
-
-
 
 
 # ── Column builders ─────────────────────────────────────────────────────────
@@ -60,6 +60,19 @@ def _framework_transforms(source_cols: list) -> list:
         ]
 
     return cols
+
+
+def _skey_transform(business_key_columns: list, skey_column: str, source_cols: list) -> tuple:
+    """MD5-based integer surrogate key embedded directly in the processed table.
+
+    SCD-2: hashes business key + __START_AT so each row version gets a distinct skey.
+    SCD-1: hashes business key only — one skey per unique natural key.
+    """
+    is_scd2 = "__START_AT" in source_cols
+    key_cols = business_key_columns + (["__START_AT"] if is_scd2 else [])
+    concat = F.concat_ws(_FIELD_SEPARATOR, *[F.col(c).cast("string") for c in key_cols])
+    skey_expr = F.conv(F.substring(F.md5(concat), 1, 15), 16, 10).cast("bigint")
+    return (skey_column, skey_expr)
 
 
 def _user_transforms(columns_config: list) -> list:
@@ -102,7 +115,7 @@ def _apply_leading_columns(col_pairs: list, leading: list) -> list:
 
 def register_processed_table(object_key: str):
     """Register a silver processed table from YAML config."""
-    config = load_hop_config(CONFIG_ROOT, f"02_silver/{L03_NAME}", object_key)
+    config = load_hop_config(CONFIG_ROOT, L03_LOCATION, L03_NAME, object_key)
 
     table_name = config["object_name"]
     catalog = config.get("catalog", CATALOG)
@@ -112,6 +125,9 @@ def register_processed_table(object_key: str):
     leading_columns = config.get("leading_columns") or []
     write_mode = config.get("write_mode", "materialized_view")
     read_mode = config.get("read_mode", "snapshot")
+
+    business_key_columns = config.get("business_key_columns") or []
+    skey_column = config.get("skey_column")
 
     user_source_cols = {c["source_col"] for c in columns_config if c.get("source_col")}
     skip = _FRAMEWORK_SOURCE_COLS | _DROP_COLS | user_source_cols
@@ -129,7 +145,11 @@ def register_processed_table(object_key: str):
         user = _user_transforms(columns_config)
         passthrough = _passthrough_cols(df.columns, skip)
 
-        col_pairs = _apply_leading_columns(passthrough + user + framework, leading_columns)
+        skey = []
+        if business_key_columns and skey_column:
+            skey = [_skey_transform(business_key_columns, skey_column, df.columns)]
+
+        col_pairs = _apply_leading_columns(skey + passthrough + user + framework, leading_columns)
 
         return df.select(*[expr.alias(name) for name, expr in col_pairs])
 
@@ -142,7 +162,5 @@ def register_processed_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Processed Tables
-for obj in load_objects(CONFIG_ROOT, "silver", "l03"):
+for obj in load_objects(CONFIG_ROOT, "l03"):
     register_processed_table(obj)
-
-

@@ -1,16 +1,18 @@
-# config/silver/processed/{object_name}.yml
+# config/02_silver/processed/{object_name}.yml
 # ──────────────────────────────────────────────────────
-# Silver Processed — typecasting and basic cleansing only.
+# Silver Processed — typecasting, basic cleansing, and surrogate key generation.
 #
-# Reads from the bronze CDC table as a materialized view (snapshot).
+# Reads from the silver CDC table as a materialized view (snapshot).
 # streaming_table is not valid here — APPLY CHANGES INTO writes via MERGE,
 # which Delta streaming cannot read (DELTA_SOURCE_TABLE_IGNORE_CHANGES).
-# Scope: CAST, TRIM, NULLIF, date parsing.
-# No joins. No business logic. No skey resolution.
-# If it needs a join, it belongs in consolidation.
+# Scope: CAST, TRIM, NULLIF, date parsing. No joins. No business logic.
 #
 # Audit column renames (__START_AT → __etl_effective_from, etc.) are applied
 # automatically by the framework — do not add them here.
+#
+# Surrogate key is computed by the framework from business_key_columns:
+#   SCD-2: MD5(business_key_columns + __START_AT) — one skey per version
+#   SCD-1: MD5(business_key_columns) — one skey per natural key
 # ──────────────────────────────────────────────────────
 
 # ── Source ──────────────────────────────────────────
@@ -30,6 +32,15 @@ read_mode: snapshot                      # snapshot = full table scan — requir
 # ── Keys ─────────────────────────────────────────────
 primary_key_columns:                     # populated from objects.yml
   # - col_a
+
+# ── Surrogate Key ────────────────────────────────────
+# SCD-2: hashes business_key_columns + __START_AT (one skey per version)
+# SCD-1: hashes business_key_columns only (one skey per natural key)
+# Omit both fields to skip skey generation for this table.
+business_key_columns:
+  # - col_a
+
+skey_column:                             # e.g. customer_skey
 
 # ── Column Ordering ──────────────────────────────────
 leading_columns:                         # optional — columns to place first; everything else follows in source order

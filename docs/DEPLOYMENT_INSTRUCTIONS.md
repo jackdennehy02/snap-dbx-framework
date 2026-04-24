@@ -1,7 +1,5 @@
 # snap-dbx-framework Deployment Instructions
 
-This document provides detailed instructions for deploying the snap-dbx-framework to Databricks.
-
 ---
 
 ## Prerequisites
@@ -24,7 +22,7 @@ Before deploying, ensure you have:
 
 ## Configuring Authentication
 
-The Databricks CLI uses authentication profiles stored in `~/.databrickscfg`. Each profile corresponds to a workspace.
+The Databricks CLI uses authentication profiles stored in `~/.databrickscfg`.
 
 ### View existing profiles:
 ```powershell
@@ -37,306 +35,196 @@ databricks configure --token
 ```
 
 When prompted, enter:
-- **Workspace URL**: `https://your-workspace-url` (e.g., `https://dbc-ef64bebd-146c.cloud.databricks.com`)
+- **Workspace URL**: `https://your-workspace-url`
 - **Token**: Your Databricks personal access token
 - **Profile name**: A descriptive name (optional; defaults to DEFAULT)
-
-### Important: Workspace URLs
-
-Each workspace has a unique URL. The bundle deployment will only work with the workspace corresponding to the profile you use. Make sure you're using the correct profile for your target workspace.
-
-To find your workspace URL: log in to Databricks, and look at the URL bar.
 
 ---
 
 ## Creating the Unity Catalog
 
-The snap-dbx-framework requires a Unity Catalog named `dev_setl` (by default). This must be created in your target workspace before deployment.
+The framework requires a Unity Catalog — `dev_setl` by default. Create it before deploying.
 
-### Option 1: Create via Databricks UI (Recommended)
+### Via Databricks UI (recommended)
 
-1. Log in to your Databricks workspace
-2. Click **Catalog** in the left sidebar
-3. Click **Create catalog**
-4. Set the name to `dev_setl`
-5. For **Storage location**, choose one of:
-   - **Use default storage** (if your workspace has default storage configured)
-   - **Specify a custom location** (provide an S3 bucket path like `s3://my-bucket/catalogs/dev_setl`)
-6. Click **Create**
+1. Log in to your workspace
+2. Click **Catalog** → **Create catalog**
+3. Set the name to `dev_setl`
+4. Choose a storage location and click **Create**
 
-### Option 2: Create via Databricks CLI
-
-If your workspace has a default storage root configured:
+### Via Databricks CLI
 
 ```powershell
 databricks catalogs create dev_setl --profile <profile-name>
-```
-
-If you need to specify a custom storage location:
-
-```powershell
-databricks catalogs create dev_setl --storage-root "s3://my-bucket/catalogs/dev_setl" --profile <profile-name>
-```
-
-### Option 3: Create via Python SDK
-
-```python
-from databricks.sdk import WorkspaceClient
-
-client = WorkspaceClient(profile="<profile-name>")
-catalog = client.catalogs.create(
-    name="dev_setl",
-    storage_root="s3://my-bucket/catalogs/dev_setl"  # Optional if default storage is configured
-)
-print(f"Catalog created: {catalog.name}")
 ```
 
 ---
 
 ## Configuring the Bundle
 
-The bundle configuration is defined in `databricks.yml`. Before deploying, you may need to update the workspace profile and catalog name.
+The bundle is defined in `databricks.yml`. The key sections to update before deploying:
 
-### Key configuration elements:
-
-#### 1. **Target Workspace Profile**
-
-In `databricks.yml`, locate the `targets.dev` section:
+### Target workspace profile
 
 ```yaml
 targets:
   dev:
-    default: true
     workspace:
-      profile: <your-profile-name>  # Change this to your profile
+      profile: <your-profile-name>   # matches a profile in ~/.databrickscfg
     variables:
       catalog: dev_setl
 ```
 
-Replace `<your-profile-name>` with the profile name from `~/.databrickscfg`. Examples:
-- `DEFAULT`
-- `dennehy.jack01@gmail.com`
-- `staging`
+### Catalog name
 
-#### 2. **Catalog Name**
-
-If you created a catalog with a different name (not `dev_setl`), update it here:
+If you created a catalog with a different name, update the `catalog` variable:
 
 ```yaml
 variables:
-  catalog: your-catalog-name  # Change this to your catalog name
+  catalog: your-catalog-name
 ```
 
-You'll also need to update all references in the `targets.dev` section:
+### Layer configuration
+
+The pipeline architecture is defined in the `configuration` block. The `ev_lNN_location`, `ev_lNN_name`, `ev_lNN_catalog`, and `ev_lNN_schema` variables drive everything — layer names, config folder structure, and where tables are written.
 
 ```yaml
-variables:
-  catalog: your-catalog-name  # Used by pipeline and schemas
+configuration:
+  ev_l01_location: bronze
+  ev_l01_name:     raw
+  ev_l01_catalog:  ${var.catalog}
+  ev_l01_schema:   01_bronze
+
+  ev_l02_location: silver
+  ev_l02_name:     cdc
+  ev_l02_catalog:  ${var.catalog}
+  ev_l02_schema:   02_silver
+
+  ev_l03_location: silver
+  ev_l03_name:     processed
+  ev_l03_catalog:  ${var.catalog}
+  ev_l03_schema:   02_silver
 ```
 
-#### 3. **Configuration Root**
-
-The `config_root` variable points to the framework's config directory. The default is `config`, which is correct for the standard project structure. Only change this if you've moved the config files.
+Don't edit generated config files directly — change `databricks.yml` or `objects.yml` and redeploy.
 
 ---
 
-## Deploying the Bundle
-
-### Prerequisites for deployment:
-
-- [ ] Databricks CLI is installed and authenticated
-- [ ] Target workspace profile is configured in `databricks.yml`
-- [ ] `dev_setl` catalog (or your custom catalog) exists in the target workspace
-- [ ] You have the environment variable set (see below)
+## Deploying
 
 ### Step 1: Set the environment variable
 
-Databricks Bundles require the `DATABRICKS_BUNDLE_ENGINE` environment variable set to `direct` when using catalog resources:
+Databricks Bundles require `DATABRICKS_BUNDLE_ENGINE=direct` when using catalog resources:
 
-#### On Windows (permanent, for all new terminals):
 ```powershell
+# Permanent (all new terminals):
 setx DATABRICKS_BUNDLE_ENGINE direct
-```
 
-Then close and reopen your terminal for the change to take effect.
-
-#### In current terminal session only:
-```powershell
+# Current session only:
 $env:DATABRICKS_BUNDLE_ENGINE = 'direct'
 ```
 
-Verify it's set:
-```powershell
-echo $env:DATABRICKS_BUNDLE_ENGINE
-```
-
-### Step 2: Validate the bundle
-
-Before deploying, validate the configuration:
+### Step 2: Validate
 
 ```powershell
-cd snap-dbx-framework
 databricks bundle validate --target dev
 ```
 
-Expected output:
-```
-Name: snap-dbx-framework
-Target: dev
-Workspace:
-  User: <your-user>
-  Path: /Workspace/Users/<your-user>/.bundle/snap-dbx-framework
-
-Validation OK!
-```
-
 ### Step 3: Deploy
-
-Deploy the bundle to your workspace:
 
 ```powershell
 databricks bundle deploy --target dev
 ```
 
-Expected output:
-```
-Uploading bundle files to /Workspace/Users/<your-user>/.bundle/snap-dbx-framework/files...
-Deploying resources...
-Updating deployment state...
-Deployment complete!
+Config files are generated automatically during deployment via the DAB Python integration in `resources/config_generator.py`. You don't need a separate generation step.
+
+To generate config files locally without deploying:
+
+```powershell
+python resources/config_generator.py
 ```
 
 ---
 
 ## What Gets Deployed
 
-When you deploy successfully, the following resources are created in your Databricks workspace:
+### Schemas
 
-### 1. **Schemas**
+Three schemas are created in the catalog:
 
-Three schemas are created in the `dev_setl` catalog:
-- `dev_setl.01_bronze` – Raw and CDC tables
-- `dev_setl.02_silver` – Processed and surrogate key tables
-- `dev_setl.03_gold` – Consolidated and dimensional tables
+| Schema | Contents |
+|---|---|
+| `01_bronze` | Raw landing tables (`raw_*`) |
+| `02_silver` | CDC tables (`cdc_*`) and processed tables (`processed_*`) |
+| `03_gold` | Consolidated and dimensional tables |
 
-### 2. **DLT Pipeline**
+### DLT Pipeline
 
-A Delta Live Tables (DLT) pipeline named `snap-dbx-framework-pipeline` is created with:
-- **Target**: `dev_setl.01_bronze` (where pipeline outputs are written)
-- **Serverless mode**: Enabled (no compute cluster required)
-- **Configuration**: All ETL environment variables set up automatically
+A Delta Live Tables pipeline named `snap-dbx-framework-pipeline` is created with:
+- **Serverless mode**: enabled
+- **Configuration**: all ETL environment variables set automatically
 
-### 3. **Notebooks**
+### Notebooks
 
-The following notebooks are uploaded and registered with the pipeline:
-- `src/bronze/raw.py` – Raw ingest layer
-- `src/bronze/cdc.py` – CDC (change detection) layer
-- `src/silver/processed.py` – Data processing and cleansing
-- `src/silver/skey.py` – Surrogate key management
+| Notebook | Layer | Purpose |
+|---|---|---|
+| `src/bronze/raw.py` | Bronze | Append-only raw ingest from source |
+| `src/silver/cdc.py` | Silver | Auto CDC — maintains SCD history |
+| `src/silver/processed.py` | Silver | Typecasting, cleansing, surrogate key generation |
 
 ---
 
 ## Troubleshooting
 
-### Error: "Catalog 'dev_setl' does not exist"
+### "Catalog 'dev_setl' does not exist"
 
-**Cause**: The catalog hasn't been created in your workspace.
+Create the catalog first — see [Creating the Unity Catalog](#creating-the-unity-catalog).
 
-**Solution**: 
-1. Verify you're in the correct workspace (check the URL and profile)
-2. Create the catalog (see [Creating the Unity Catalog](#creating-the-unity-catalog))
+### "Catalog resources are only supported with direct deployment mode"
 
-### Error: "Catalog resources are only supported with direct deployment mode"
-
-**Cause**: The `DATABRICKS_BUNDLE_ENGINE` environment variable is not set to `direct`.
-
-**Solution**:
 ```powershell
 setx DATABRICKS_BUNDLE_ENGINE direct
 ```
-Then close and reopen your terminal.
 
-### Error: "Metastore storage root URL does not exist"
+Close and reopen your terminal after running this.
 
-**Cause**: Your workspace doesn't have a default storage root configured, and you didn't specify one when creating the catalog.
+### "Metastore storage root URL does not exist"
 
-**Solution**:
-1. Contact your Databricks admin to configure a default storage root, or
-2. Specify a storage location when creating the catalog: `databricks catalogs create dev_setl --storage-root "s3://my-bucket/catalogs/dev_setl"`
+Your workspace doesn't have a default storage root. Either contact your Databricks admin, or specify a storage location when creating the catalog:
 
-### Error: "The target schema field is required for UC pipelines"
+```powershell
+databricks catalogs create dev_setl --storage-root "s3://my-bucket/catalogs/dev_setl"
+```
 
-**Cause**: The pipeline configuration doesn't specify a target schema.
+### "The target schema field is required for UC pipelines"
 
-**Solution**: Ensure `databricks.yml` includes a `target` field:
+Ensure `databricks.yml` includes a `target` field under the pipeline:
+
 ```yaml
 pipelines:
   snap_dbx_framework:
     target: 01_bronze
 ```
 
-### Error: "unknown command 'sql' for databricks"
-
-**Cause**: You're trying to use an unsupported CLI command.
-
-**Solution**: Use the Databricks UI or Python SDK to create catalogs instead.
-
 ### Deployment succeeds but pipeline doesn't run
 
-**Cause**: The pipeline may need to be manually triggered, or there may be missing source data.
-
-**Solution**:
-1. Navigate to **Jobs & Pipelines** in your workspace
-2. Find `snap-dbx-framework-pipeline`
-3. Click **Start** to run the pipeline
-4. Check the logs for any errors
+Trigger it manually: **Jobs & Pipelines** → `snap-dbx-framework-pipeline` → **Start**.
 
 ---
 
 ## Redeploying
 
-If you make changes to the bundle configuration or code:
-
-1. Update the files (e.g., `databricks.yml`, notebooks, config files)
-2. Validate: `databricks bundle validate --target dev`
-3. Deploy: `databricks bundle deploy --target dev`
-
-The deployment will update existing resources and create new ones as needed.
+```powershell
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+```
 
 ---
 
 ## Removing the Deployment
 
-To remove all resources created by this bundle:
-
 ```powershell
 databricks bundle destroy --target dev
 ```
 
-**Warning**: This will delete:
-- All schemas and tables in the bundle
-- The DLT pipeline
-- All deployed notebooks
-
-This **does not** delete the catalog itself (Databricks requires explicit catalog deletion through the UI or API).
-
----
-
-## Next Steps
-
-Once deployed:
-
-1. Verify the pipeline exists: **Jobs & Pipelines** → `snap-dbx-framework-pipeline`
-2. Check the schemas: **Catalog** → `dev_setl` → view `01_bronze`, `02_silver`, `03_gold`
-3. Upload source data to your configured ingest location
-4. Start the pipeline to begin ETL processing
-5. Monitor pipeline runs in the **Runs** tab
-
----
-
-## Additional Resources
-
-- [Databricks CLI Documentation](https://docs.databricks.com/dev-tools/cli/)
-- [Databricks Bundles](https://docs.databricks.com/dev-tools/bundles/)
-- [Delta Live Tables](https://docs.databricks.com/delta-live-tables/)
-- [Unity Catalog](https://docs.databricks.com/data-governance/unity-catalog/)
+This deletes all schemas, tables, the DLT pipeline, and deployed notebooks. It does **not** delete the catalog itself.

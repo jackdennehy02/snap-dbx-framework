@@ -22,6 +22,7 @@ ingestion_mode:                          # snapshot | streaming — inherits fro
 merge_strategy:                          # overwrite | append | upsert — inherits from hop_defaults if omitted
 filter:                                  # SQL WHERE applied at read time
 data_items:                              # column list for SELECT; null = SELECT *
+source_updated_at_col:                   # optional — source column to use as __source_updated_at; defaults to file modification time
 primary_key_columns:                     # required if merge_strategy: upsert
   # - col_a
   # - col_b

@@ -1,6 +1,6 @@
-# config/bronze/cdc/{object_name}.yml
+# config/02_silver/cdc/{object_name}.yml
 # ──────────────────────────────────────────────────────
-# Bronze CDC — Databricks Auto CDC (APPLY CHANGES INTO)
+# Silver CDC — Databricks Auto CDC (APPLY CHANGES INTO)
 #
 # Databricks handles all column pass-through automatically.
 # No column mappings are defined here — only the Auto CDC

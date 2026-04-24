@@ -70,21 +70,20 @@ resources:
         ev_null_value:      "^^"
         ev_field_separator: "||"
 
-        ev_l01_name:    raw
-        ev_l01_catalog: ${var.catalog}
-        ev_l01_schema:  01_bronze
+        ev_l01_location: bronze
+        ev_l01_name:     raw
+        ev_l01_catalog:  ${var.catalog}
+        ev_l01_schema:   01_bronze
 
-        ev_l02_name:    cdc
-        ev_l02_catalog: ${var.catalog}
-        ev_l02_schema:  01_bronze
+        ev_l02_location: silver
+        ev_l02_name:     cdc
+        ev_l02_catalog:  ${var.catalog}
+        ev_l02_schema:   02_silver
 
-        ev_l03_name:    processed
-        ev_l03_catalog: ${var.catalog}
-        ev_l03_schema:  02_silver
-
-        ev_l04_name:    skey
-        ev_l04_catalog: ${var.catalog}
-        ev_l04_schema:  02_silver
+        ev_l03_location: silver
+        ev_l03_name:     processed
+        ev_l03_catalog:  ${var.catalog}
+        ev_l03_schema:   02_silver
 
         catalog_gold:   ${var.catalog}
         schema_gold:    03_gold
@@ -93,8 +92,6 @@ resources:
         - notebook:
             path: src/bronze/raw.py
         - notebook:
-            path: src/bronze/cdc.py
+            path: src/silver/cdc.py
         - notebook:
             path: src/silver/processed.py
-        - notebook:
-            path: src/silver/skey.py

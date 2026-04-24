@@ -8,15 +8,16 @@
 # DBTITLE 1,Loaders
 import sys
 sys.path.insert(0, '..')
-from utils import load_objects, load_hop_config
+from utils import load_objects, load_hop_config, source_timestamp as _source_timestamp
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
-CONFIG_ROOT = spark.conf.get("ev_config_root")
-L01_NAME    = spark.conf.get("ev_l01_name")
-CATALOG     = spark.conf.get("ev_l01_catalog")
-SCHEMA      = spark.conf.get("ev_l01_schema")
+CONFIG_ROOT   = spark.conf.get("ev_config_root")
+L01_LOCATION  = spark.conf.get("ev_l01_location")
+L01_NAME      = spark.conf.get("ev_l01_name")
+CATALOG       = spark.conf.get("ev_l01_catalog")
+SCHEMA        = spark.conf.get("ev_l01_schema")
 
 
 # ── Source reader builders ──────────────────────────────────────────────────
@@ -82,7 +83,7 @@ def _validate_raw_config(object_key: str, ingestion_mode: str, merge_strategy: s
 
 def register_raw_table(object_key: str):
     """Register a dp.table for a raw source object based on its YAML config."""
-    config = load_hop_config(CONFIG_ROOT, f"01_bronze/{L01_NAME}", object_key)
+    config = load_hop_config(CONFIG_ROOT, L01_LOCATION, L01_NAME, object_key)
     source_type = config.get("source_type", "cloud_storage")
     conn = config.get("connection", {})
     ingestion_mode = config.get(
@@ -96,6 +97,7 @@ def register_raw_table(object_key: str):
     schema = config.get("schema", SCHEMA)
     comment = config.get("comment")
     data_items = config.get("data_items")
+    source_updated_at_col = config.get("source_updated_at_col")
 
     _validate_raw_config(object_key, ingestion_mode, merge_strategy)
 
@@ -112,10 +114,15 @@ def register_raw_table(object_key: str):
         if data_items:
             df = df.selectExpr(*data_items)
 
+        source_ts = (
+            _source_timestamp(df, source_updated_at_col)
+            if source_updated_at_col
+            else F.col("_metadata.file_modification_time")
+        )
+
         return (
             df
-            .withColumn("__source_updated_at",
-                        F.col("_metadata.file_modification_time"))
+            .withColumn("__source_updated_at", source_ts)
             .withColumn("__etl_loaded_at", F.current_timestamp())
         )
 
@@ -128,5 +135,5 @@ def register_raw_table(object_key: str):
 # COMMAND ----------
 
 # DBTITLE 1,Raw Tables
-for obj in load_objects(CONFIG_ROOT, "bronze", "l01"):
+for obj in load_objects(CONFIG_ROOT, "l01"):
     register_raw_table(obj)

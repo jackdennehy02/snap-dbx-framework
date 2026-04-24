@@ -6,6 +6,10 @@ Called automatically during `databricks bundle deploy` via the DAB Python entry
 point in resources/__init__.py. Can also be run standalone:
 
     python resources/config_generator.py [--target dev] [--config-root config]
+
+Config files are written to config/{hop_name}/{hop_name}_{object}.yml.
+Hop names (raw, cdc, processed) and their catalog/schema targets are defined
+entirely in databricks.yml — nothing here is coupled to bronze/silver naming.
 """
 
 import argparse
@@ -16,23 +20,17 @@ from typing import Optional
 
 BUNDLE_ROOT = Path(__file__).parent.parent
 
-LAYER_FOLDERS = {
-    "bronze": "01_bronze",
-    "silver": "02_silver",
-}
-
+# Maps hop ID → config template filename.
 TEMPLATE_MAP = {
-    ("bronze", "l01"): "loading.yml",
-    ("bronze", "l02"): "bronze_cdc.yml",
-    ("silver", "l03"): "silver_processed.yml",
-    ("silver", "l04"): "silver_skey.yml",
+    "l01": "loading.yml",
+    "l02": "silver_cdc.yml",
+    "l03": "silver_processed.yml",
 }
 
-# Maps each hop to its upstream hop for source_object name resolution.
+# Maps each hop to the hop it reads from, for source_object name resolution.
 HOP_CHAIN = {
-    ("bronze", "l02"): ("bronze", "l01"),
-    ("silver", "l03"): ("bronze", "l02"),
-    ("silver", "l04"): ("silver", "l03"),
+    "l02": "l01",
+    "l03": "l02",
 }
 
 CONNECTION_SECTION_MARKERS = {
@@ -68,25 +66,23 @@ def load_hop_defaults(target: str) -> dict:
         return value.replace("${var.catalog}", catalog)
 
     return {
-        ("bronze", "l01"): {
-            "catalog": catalog,
-            "schema":  resolve(pipeline_config.get("ev_l01_schema", "")),
-            "name":    pipeline_config.get("ev_l01_name", ""),
+        "l01": {
+            "location": pipeline_config.get("ev_l01_location", ""),
+            "catalog":  catalog,
+            "schema":   resolve(pipeline_config.get("ev_l01_schema", "")),
+            "name":     pipeline_config.get("ev_l01_name", ""),
         },
-        ("bronze", "l02"): {
-            "catalog": catalog,
-            "schema":  resolve(pipeline_config.get("ev_l02_schema", "")),
-            "name":    pipeline_config.get("ev_l02_name", ""),
+        "l02": {
+            "location": pipeline_config.get("ev_l02_location", ""),
+            "catalog":  catalog,
+            "schema":   resolve(pipeline_config.get("ev_l02_schema", "")),
+            "name":     pipeline_config.get("ev_l02_name", ""),
         },
-        ("silver", "l03"): {
-            "catalog": catalog,
-            "schema":  resolve(pipeline_config.get("ev_l03_schema", "")),
-            "name":    pipeline_config.get("ev_l03_name", ""),
-        },
-        ("silver", "l04"): {
-            "catalog": catalog,
-            "schema":  resolve(pipeline_config.get("ev_l04_schema", "")),
-            "name":    pipeline_config.get("ev_l04_name", ""),
+        "l03": {
+            "location": pipeline_config.get("ev_l03_location", ""),
+            "catalog":  catalog,
+            "schema":   resolve(pipeline_config.get("ev_l03_schema", "")),
+            "name":     pipeline_config.get("ev_l03_name", ""),
         },
     }
 
@@ -273,6 +269,20 @@ def _inject_yaml_list(content: str, field_name: str, values: list) -> str:
 
 
 _SECTION_HEADER = re.compile(r'^\s*# ── \w')
+_COLUMNS_SECTION = re.compile(r'^columns:', re.MULTILINE)
+
+
+def _preserve_columns_section(existing: str, generated: str) -> str:
+    """Keep the user-authored columns section from an existing processed config.
+
+    Replaces the generated columns section with whatever is in the existing file
+    so hand-written transforms survive re-generation.
+    """
+    m_existing  = _COLUMNS_SECTION.search(existing)
+    m_generated = _COLUMNS_SECTION.search(generated)
+    if not m_existing or not m_generated:
+        return generated
+    return generated[:m_generated.start()] + existing[m_existing.start():]
 
 
 def _strip_template_header(content: str) -> str:
@@ -290,9 +300,9 @@ def _strip_template_header(content: str) -> str:
     return "\n".join(lines[i:])
 
 
-def _source_object_name(object_key: str, layer: str, sub_layer: str, hop_defaults: dict) -> str:
-    """Derive the source_object name for a hop from its upstream hop."""
-    upstream = HOP_CHAIN.get((layer, sub_layer))
+def _source_object_name(object_key: str, layer_id: str, hop_defaults: dict) -> str:
+    """Derive the source_object name from the upstream hop."""
+    upstream = HOP_CHAIN.get(layer_id)
     if not upstream:
         return ""
     src_name = hop_defaults.get(upstream, {}).get("name", "")
@@ -302,7 +312,7 @@ def _source_object_name(object_key: str, layer: str, sub_layer: str, hop_default
 # ── Populate functions ──────────────────────────────────────────────────────────
 
 def _populate_loading(template, object_key, hop_config, source_type, connection, primary_keys, hop_defaults):
-    hop = hop_defaults[("bronze", "l01")]
+    hop = hop_defaults["l01"]
     object_name = f"{hop['name']}_{object_key}" if hop["name"] else object_key
 
     content = strip_irrelevant_connections(template, source_type)
@@ -319,9 +329,9 @@ def _populate_loading(template, object_key, hop_config, source_type, connection,
 
 
 def _populate_cdc(template, object_key, hop_config, primary_keys, hop_defaults):
-    hop = hop_defaults[("bronze", "l02")]
+    hop = hop_defaults["l02"]
     object_name = f"{hop['name']}_{object_key}" if hop["name"] else object_key
-    source_object = _source_object_name(object_key, "bronze", "l02", hop_defaults)
+    source_object = _source_object_name(object_key, "l02", hop_defaults)
 
     content = _substitute_fields(template, {
         "source_object": source_object,
@@ -335,44 +345,29 @@ def _populate_cdc(template, object_key, hop_config, primary_keys, hop_defaults):
 
 
 def _populate_processed(template, object_key, primary_keys, hop_defaults):
-    hop = hop_defaults[("silver", "l03")]
+    hop = hop_defaults["l03"]
     object_name = f"{hop['name']}_{object_key}" if hop["name"] else object_key
-    source_object = _source_object_name(object_key, "silver", "l03", hop_defaults)
+    source_object = _source_object_name(object_key, "l03", hop_defaults)
 
     content = _substitute_fields(template, {
         "source_object": source_object,
         "object_name":   object_name,
         "catalog":       hop["catalog"],
         "schema":        hop["schema"],
-    })
-    return _inject_yaml_list(content, "primary_key_columns", primary_keys)
-
-
-def _populate_skey(template, object_key, hop_config, primary_keys, hop_defaults):
-    hop = hop_defaults[("silver", "l04")]
-    object_name = f"{hop['name']}_{object_key}" if hop["name"] else object_key
-    source_object = _source_object_name(object_key, "silver", "l04", hop_defaults)
-
-    content = _substitute_fields(template, {
-        "source_object": source_object,
-        "object_name":   object_name,
         "skey_column":   f"{object_key}_skey",
-        "scd_type":      _yaml_str(hop_config.get("scd_type", "")),
-        "catalog":       hop["catalog"],
-        "schema":        hop["schema"],
     })
-    return _inject_yaml_list(content, "business_key_columns", primary_keys)
+    content = _inject_yaml_list(content, "primary_key_columns", primary_keys)
+    content = _inject_yaml_list(content, "business_key_columns", primary_keys)
+    return content
 
 
-def _dispatch(template, object_key, layer, sub_layer, hop_config, source_type, connection, primary_keys, hop_defaults):
-    if layer == "bronze" and sub_layer == "l01":
+def _dispatch(template, object_key, layer_id, hop_config, source_type, connection, primary_keys, hop_defaults):
+    if layer_id == "l01":
         return _populate_loading(template, object_key, hop_config, source_type, connection, primary_keys, hop_defaults)
-    if layer == "bronze" and sub_layer == "l02":
+    if layer_id == "l02":
         return _populate_cdc(template, object_key, hop_config, primary_keys, hop_defaults)
-    if layer == "silver" and sub_layer == "l03":
+    if layer_id == "l03":
         return _populate_processed(template, object_key, primary_keys, hop_defaults)
-    if layer == "silver" and sub_layer == "l04":
-        return _populate_skey(template, object_key, hop_config, primary_keys, hop_defaults)
     return template
 
 
@@ -410,7 +405,7 @@ def generate_configs(bundle_or_target=None, config_root: Optional[str] = None):
 
         source_type = source.get("source_type", "")
         base_connection = source.get("connection", {})
-        hop_layer_defaults = source.get("defaults", {})
+        layer_defaults = source.get("defaults", {})
 
         object_groups = [
             ("dimension", source.get("dimensions") or {}),
@@ -422,47 +417,44 @@ def generate_configs(bundle_or_target=None, config_root: Optional[str] = None):
                 primary_keys, _overrides = parse_object(object_value)
                 connection = resolve_connection(base_connection, object_key)
 
-                for layer in ("bronze", "silver"):
-                    layer_defaults = hop_layer_defaults.get(layer, {})
-                    if not layer_defaults:
+                for layer_id, hop_config in layer_defaults.items():
+                    if not hop_config:
+                        continue
+                    if hop_config.get("enabled") is False:
+                        continue
+                    if not hop_config.get("metadata_driven"):
                         continue
 
-                    for sub_layer, hop_config in layer_defaults.items():
-                        if not hop_config:
-                            continue
-                        if hop_config.get("enabled") is False:
-                            continue
-                        if not hop_config.get("metadata_driven"):
-                            continue
+                    # scd_type for CDC derived from object classification
+                    if layer_id == "l02":
+                        hop_config = {**hop_config, "scd_type": 1 if object_type == "fact" else 2}
 
-                        # scd_type for CDC and skey layers is derived from object classification
-                        if sub_layer in ("l02", "l04"):
-                            hop_config = {**hop_config, "scd_type": 1 if object_type == "fact" else 2}
+                    template_name = TEMPLATE_MAP.get(layer_id)
+                    hop = hop_defaults.get(layer_id, {})
+                    hop_name = hop.get("name")
+                    location = hop.get("location")
 
-                        folder_key = (layer, sub_layer)
-                        template_name = TEMPLATE_MAP.get(folder_key)
-                        hop_name = hop_defaults.get(folder_key, {}).get("name")
-                        layer_folder = LAYER_FOLDERS.get(layer)
+                    if not template_name or not hop_name or not location:
+                        print(f"  WARNING: No template mapping for {layer_id} — skipping.")
+                        continue
 
-                        if not template_name or not hop_name or not layer_folder:
-                            print(f"  WARNING: No mapping for ({layer}, {sub_layer}) — skipping.")
-                            continue
+                    folder_path = root / location / hop_name
+                    file_path = folder_path / f"{hop_name}_{object_key}.yml"
+                    folder_path.mkdir(parents=True, exist_ok=True)
 
-                        folder_path = root / layer_folder / hop_name
-                        file_path = folder_path / f"{hop_name}_{object_key}.yml"
-                        folder_path.mkdir(parents=True, exist_ok=True)
+                    content = _dispatch(
+                        templates[template_name],
+                        object_key, layer_id,
+                        hop_config, source_type, connection, primary_keys,
+                        hop_defaults,
+                    )
+                    content = _strip_template_header(content)
 
-                        content = _dispatch(
-                            templates[template_name],
-                            object_key, layer, sub_layer,
-                            hop_config, source_type, connection, primary_keys,
-                            hop_defaults,
-                        )
-                        content = _strip_template_header(content)
-
-                        existed = file_path.exists()
-                        file_path.write_text(content)
-                        (updated if existed else created).append(str(file_path))
+                    existed = file_path.exists()
+                    if existed and layer_id == "l03":
+                        content = _preserve_columns_section(file_path.read_text(), content)
+                    file_path.write_text(content)
+                    (updated if existed else created).append(str(file_path))
 
     total = len(created) + len(updated)
     print(f"Generated {total} file(s) — {len(created)} new, {len(updated)} updated.")

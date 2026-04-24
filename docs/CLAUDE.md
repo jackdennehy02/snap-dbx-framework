@@ -1,6 +1,6 @@
 # CLAUDE.md — snap-dbx-framework
 
-Before doing any work in this project, read the following documents in order. They contain the architecture decisions, data model, SETL framework context, and config schemas that inform everything here.
+Before doing any work in this project, read the following documents in order.
 
 ---
 
@@ -8,16 +8,17 @@ Before doing any work in this project, read the following documents in order. Th
 
 ### 1. Architecture
 **[architecture.md](architecture.md)**
-The canonical reference for the pipeline layers, SETL mapping, naming conventions, audit columns, and config inheritance model. If something contradicts this doc, flag it rather than assuming.
+Canonical reference for pipeline layers, SETL mapping, naming conventions, audit columns, surrogate key generation, and the config inheritance model.
 
 ### 2. Master Object Registry
-**[config/objects.yml](config/objects.yml)**
-Defines every object in the pipeline — what layers it flows through, its table name at each layer, load behaviour, and whether it's metadata-driven. The generator uses this to produce per-layer config files.
+**[config/objects.yml](../config/objects.yml)**
+Defines every object in the pipeline. Hop defaults are keyed by layer ID (`l01`, `l02`, `l03`) — not by bronze/silver names. The generator reads this to produce per-layer config files.
 
 ### 3. Config Templates
-**[config_template/objects.yml](config_template/objects.yml)** — schema and field documentation for the master object registry.
-**[config_template/loading.yml](config_template/loading.yml)** — schema for bronze raw ingestion configs (`config/loading/`).
-**[config_template/hop.yml](config_template/hop.yml)** — schema for all hop configs (bronze CDC, silver, gold).
+**[config/config_templates/loading.yml](../config/config_templates/loading.yml)** — bronze raw ingestion config schema.
+**[config/config_templates/silver_cdc.yml](../config/config_templates/silver_cdc.yml)** — silver CDC config schema.
+**[config/config_templates/silver_processed.yml](../config/config_templates/silver_processed.yml)** — silver processed config schema (includes surrogate key fields).
+**[config/config_templates/hop.yml](../config/config_templates/hop.yml)** — gold CONS and dimensional config schema.
 
 ### 4. Project Context
 **[../../raw_docs/SETL_framework_matillion](../../raw_docs/SETL_framework_matillion)** — Snap's SETL framework documentation. This is the Matillion/Snowflake implementation this project mirrors on Databricks.
@@ -28,15 +29,34 @@ Defines every object in the pipeline — what layers it flows through, its table
 
 ## Key Decisions to Carry Forward
 
-- **Bronze has two sub-layers: raw and CDC.**
-  - Raw (`tbl_raw_`) is append-only — every load is retained as full source history.
-  - CDC (`tbl_cdc_`) uses **Databricks Auto CDC** (`APPLY CHANGES INTO`) applied to `tbl_raw_`. Databricks maintains the SCD-2 history natively — no manual view comparison. Databricks generates its own system column names (`__START_AT`, `__END_AT`, `_change_type`).
-- **Silver processed (`tbl_proc_`) has two jobs:** apply framework audit column transforms, then user-defined typecasting and basic cleansing. No joins, no business logic — if it needs a join it belongs in CONS. Framework transforms (always applied, never in YAML config): `__etl_loaded_at` (pass-through), `__etl_processed_at` (`current_timestamp()`), `__START_AT` → `__etl_effective_from`, `__END_AT` → `__etl_effective_to` (`NULL` → `9999-12-31 23:59:59`), `__etl_is_current` (`__END_AT IS NULL`). Unspecified columns pass through automatically.
-- **Silver processed is a materialized view reading from the bronze CDC table** (snapshot, not stream). `APPLY CHANGES INTO` writes via MERGE — streaming tables cannot read from a MERGE-modified source (`DELTA_SOURCE_TABLE_IGNORE_CHANGES`). Silver SKEY is also a materialized view for the same reason (its source, processed, is a MV).
-- **SKEY is insert-only.** Once a surrogate key is assigned it never changes. SCD-2 objects generate a new skey per effective version.
-- **Naming convention:** `tbl_raw_`, `tbl_cdc_`, `tbl_proc_`, `tbl_skey_`, `tbl_cons_`, `tbl_dim_`, `tbl_mart_`. All `lower_snake_case`. No views needed — Auto CDC handles the comparison.
-- **`__etl_record_indicator` is dropped** — Auto CDC handles change detection internally. Record state is determined by `__etl_is_current` (derived from `__END_AT IS NULL`).
-- **`__etl_` columns are introduced at Silver Processed**, not bronze. Bronze CDC uses Databricks system column names (`__START_AT`, `__END_AT`).
-- **`__file_modification_time` is renamed to `__source_updated_at` at Bronze Raw** — standardised name across all source types. Both `__source_updated_at` and `__etl_loaded_at` pass through CDC and are available in Silver Processed.
-- **objects.yml is the orchestrator.** It drives generation of all per-layer config files. Don't edit individual layer configs without checking objects.yml first.
-- **Gold is the dimensional model.** Dimensions are SCD-2 for customer and material; plant is SCD-1. Facts carry surrogate keys resolved in the CONS layer.
+### Architecture
+
+- **Three hops: raw → cdc → processed.** Bronze is append-only landing only. CDC and processed both live in silver. Gold (CONS, dimensional) is manually configured.
+- **CDC lives in silver, not bronze.** `src/silver/cdc.py` applies `APPLY CHANGES INTO` from `raw_` to `cdc_`. Bronze raw is intentionally dumb — it just lands data.
+- **The SKEY layer is eliminated.** Surrogate keys are generated directly inside the processed materialized view, not in a separate mapping table.
+- **`databricks.yml` is the source of truth for architecture.** Layer names (`ev_lNN_name`), medallion locations (`ev_lNN_location`), catalog, and schema are all defined there. The config generator reads these to determine where to write config files and what catalog/schema to target. Nothing is hardcoded in notebooks or config files.
+
+### Config generation
+
+- **Config folders are derived from `databricks.yml`.** The generator places files at `config/{ev_lNN_location}/{ev_lNN_name}/`. Currently: `config/bronze/raw/`, `config/silver/cdc/`, `config/silver/processed/`.
+- **`objects.yml` uses `l01`/`l02`/`l03` for hop defaults** — not bronze/silver. The bronze/silver distinction belongs to `databricks.yml`.
+- **Generated configs are committed to git.** They are regenerated on every `bundle deploy` — don't edit them directly.
+
+### Silver processed
+
+- **Materialized view, not streaming table.** `APPLY CHANGES INTO` writes via MERGE; streaming tables cannot read from MERGE-modified sources (`DELTA_SOURCE_TABLE_IGNORE_CHANGES`).
+- **Surrogate key is MD5-based integer.** SCD-2: hash of `business_key_columns + __START_AT`. SCD-1: hash of `business_key_columns` only. Configured via `business_key_columns` and `skey_column` in the processed config.
+- **Skey appears at ordinal position 0** in every processed table.
+- **Framework transforms are automatic** — `__START_AT` → `__etl_effective_from`, `__END_AT` → `__etl_effective_to` (NULL → `ev_end_date`), `__etl_is_current` derived from `__END_AT IS NULL`. Never add these to the `columns` config.
+- **Passthrough is automatic.** Only columns needing transformation go in `columns`. Everything else passes through unchanged.
+
+### Bronze raw
+
+- **`__source_updated_at`** defaults to `_metadata.file_modification_time`. Override with `source_updated_at_col` in the raw config if the source data contains a timestamp column.
+- **`__etl_loaded_at`** is always `current_timestamp()` at load time.
+- Both audit columns pass through CDC and are available in silver processed.
+
+### Naming
+
+- Prefixes: `raw_`, `cdc_`, `processed_`, `cons_`, `dim_`, `fact_`. No `skey_`, no `tbl_`.
+- All `lower_snake_case`.
